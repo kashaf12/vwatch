@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use vwatch or its eval harness, please cite it as below."
+title: "vwatch: an agent toolkit that watches video like a person"
+type: software
+authors:
+  - alias: kashaf12
+version: 0.1.0
+date-released: 2026-11-22
+license: MIT
+repository-code: "https://github.com/kashaf12/vwatch"
+url: "https://github.com/kashaf12/vwatch"
+abstract: >-
+  vwatch is an agent toolkit for video understanding with large language models.
+  Instead of sampling frames uniformly, it plans from the question, skims at low
+  resolution while the model predicts what should happen next, uses model-free
+  signal hints, and spends its token budget on dense seeks, crops and listens at
+  the surprising moments. It ships with an eval harness that compares this against
+  uniform frame sampling, ablations, and existing Claude Code video tools at a
+  matched evidence-token budget.
+keywords:
+  - video understanding
+  - multimodal agents
+  - large language models
+  - evaluation
+  - frame sampling

@@ -1,0 +1,47 @@
+name: Bug report
+description: Something in vwatch is broken or gives a wrong result
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report. Please do not paste API keys, private video paths or private video content.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you got instead.
+      placeholder: |
+        uv run vw watch clip.mp4 -q "..."
+        Expected ... but got ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The error message or the relevant part of `--json` output.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: vwatch version or commit
+      placeholder: 0.1.0 / abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Model backend
+      options:
+        - Anthropic API (ANTHROPIC_API_KEY)
+        - Claude Code CLI
+        - not relevant (signals, dataset, report)
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, `ffmpeg -version | head -1`
+    validations:
+      required: true

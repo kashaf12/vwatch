@@ -1,0 +1,37 @@
+# Python / tooling
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local secrets and editor/OS noise
+.env
+.env.*
+.claude/settings.local.json
+.DS_Store
+.idea/
+.vscode/
+*.tmp
+*.tmp.*
+*.part
+
+# Third-party tools for the external arms (built by scripts/setup_external.sh)
+vendor/
+
+# Eval data and raw runs are rebuilt locally (see docs/DATA.md); videos are never committed
+eval/data/
+eval/data/_cache/
+eval/runs/
+# eval/bench: keep the fixed id lists, ignore anything a benchmark writes next to them
+eval/bench/*
+!eval/bench/*.txt
+!eval/bench/*.py

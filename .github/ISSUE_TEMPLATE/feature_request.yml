@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an improvement to the watcher, the tools or the eval harness
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, or what does vwatch get wrong? A concrete video/question helps.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you'd like to happen. If it changes the watcher, say how you'd measure it (which task / metric in docs/eval-protocol.md).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
