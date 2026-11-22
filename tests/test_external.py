@@ -402,3 +402,44 @@ class TestAuditInlineCode:
 
     def test_bare_root_in_shell_is_still_flagged(self):
         assert self._flags("grep -r secret /")
+
+
+class TestVwatchPluginArm:
+    """VWP = Claude Code + this repo's plugin; server named like the plugin-provided one."""
+
+    def _repo(self, tmp_path: Path) -> Path:
+        repo = tmp_path / "repo"
+        (repo / "plugins" / "vwatch" / ".claude-plugin").mkdir(parents=True)
+        (repo / "plugins" / "vwatch" / "commands").mkdir()
+        (repo / "plugins" / "vwatch" / "commands" / "watch.md").write_text("---\ndescription: x\n---\nwatch $ARGUMENTS\n")
+        (repo / "plugins" / "vwatch" / ".claude-plugin" / "plugin.json").write_text(json.dumps(
+            {"name": "vwatch", "version": "0.2.0", "mcpServers": {"vwatch": {"command": "uvx", "args": []}}}))
+        return repo
+
+    def test_setup_copies_plugin_and_attaches_local_server(self, tmp_path):
+        repo = self._repo(tmp_path)
+        video = tmp_path / "v.mp4"
+        video.write_bytes(b"x")
+        dirs = ex.make_run_dirs(video, tmp_path / "runs")
+        cfg = ex.ExternalConfig(vendor_dir=tmp_path / "vendor")
+        extra = ex.setup_vwp(cfg, dirs, {"PATH": os.environ["PATH"]}, repo_root=repo)
+        plugin = Path(extra[extra.index("--plugin-dir") + 1])
+        assert (plugin / "commands" / "watch.md").exists()
+        assert "mcpServers" not in json.loads((plugin / ".claude-plugin" / "plugin.json").read_text())
+        conf = json.loads(Path(extra[extra.index("--mcp-config") + 1]).read_text())
+        server = conf["mcpServers"][ex.VWP_SERVER]
+        assert server["args"][:3] == ["run", "--project", str(repo)] and server["args"][-1] == "vwatch-mcp"
+
+    def test_missing_plugin_dir_fails_clearly(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        video.write_bytes(b"x")
+        dirs = ex.make_run_dirs(video, tmp_path / "runs")
+        with pytest.raises(ex.SetupError, match="vwatch plugin"):
+            ex.setup_vwp(ex.ExternalConfig(vendor_dir=tmp_path), dirs, {"PATH": ""}, repo_root=tmp_path / "nope")
+
+    def test_tools_and_prompt(self):
+        assert ex.VWP_MCP == "mcp__plugin_vwatch_vwatch"
+        assert ex.VWP_MCP in ex.allowed_tools(Arm.VWP) and "Skill" in ex.allowed_tools(Arm.VWP)
+        assert ex.builtin_tools(Arm.VWP) == "Bash,Read,Skill"
+        assert ex.agent_prompt(Arm.VWP, "TASK").startswith("/vwatch:watch ./video.mp4 TASK")
+        assert Arm.VWP in ex.EXTERNAL_ARMS

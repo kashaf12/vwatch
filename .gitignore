@@ -35,3 +35,6 @@ eval/runs/
 eval/bench/*
 !eval/bench/*.txt
 !eval/bench/*.py
+
+# Claude Code local state (agent worktrees, settings)
+.claude/
