@@ -73,7 +73,7 @@ $ uv run vw signals clip.mp4        # a public-domain speech clip with a 3-frame
 - 00:44.27–00:44.37 flash (score 1.00): 3 frame(s) differ from both neighbours
 ```
 
-Hints are not verdicts: a natural scene cut and a jump cut look alike here, and so do a sentence pause and an audio dropout. Deciding which is which is the model's job.
+Hints are not verdicts: a held frame before an edit looks like a freeze, an edit in the source looks like a jump cut, and a sentence pause looks like an audio dropout. Deciding which is which is the model's job. `eval/bench/eval_signals.py` measures the detectors alone (recall, precision, false alarms per clean minute) with no model calls.
 
 ## Results
 
@@ -230,6 +230,7 @@ The default model is `claude-opus-5-5` (`--model` to change it, `--effort` for r
 | `src/vwatch/cli.py` | The `vw` command |
 | `src/vwatch/media.py`, `imaging.py` | ffmpeg I/O, frame grids, crops, timestamps, token estimates |
 | `src/vwatch/signals.py` | Model-free perception: flashes, cuts, freezes, silences, local changes |
+| `src/vwatch/detectors.py` | Full-pass freeze and jump-cut detectors (mid-res stillness, catch-up jump, audio splice click on a frame boundary) |
 | `src/vwatch/transcribe.py` | Whisper transcript with word timestamps, cached |
 | `src/vwatch/llm/` | Backends: Anthropic SDK, Claude Code CLI, a fake for tests, the T3 judge |
 | `src/vwatch/arms/` | `watcher.py` (W and ablations), `tools.py` (overview / seek / crop / listen), `baseline.py` (B0/B1/B2/B1H), `external*.py` (CC/CVV/POP, sandbox and audit) |

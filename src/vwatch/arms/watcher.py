@@ -32,7 +32,7 @@ SYSTEM = ("You watch videos the way an attentive person does: decide what you ar
           "notice where your expectations break, and look closely there. You only see what you ask "
           "for, so ask for what you need. Be precise about times. When asked for JSON, reply with JSON only.")
 
-SIGNAL_KINDS = ("flash", "freeze", "cut", "cut_in_speech", "silence_in_speech", "local_change")
+SIGNAL_KINDS = ("flash", "freeze", "jump_cut", "cut", "cut_in_speech", "silence_in_speech", "local_change")
 MAX_ACTION_ROUNDS = 3
 MAX_ACTIONS_PER_ROUND = 6
 FOCUS_SHARE = 0.7  # share of the budget the harness may spend before the model's own requests
@@ -126,7 +126,7 @@ Decide: what exactly you are looking for; which screen regions need a close, ful
 (normalized boxes [x0, y0, x1, y1], 0..1, origin top-left; e.g. a subtitle band near the bottom);
 how many frames per second you need when inspecting a suspicious moment (2-12); how dense the first
 skim should be (0.25-2 fps); and which low-level signal hints matter for this task, from:
-flash, freeze, cut, cut_in_speech, silence_in_speech, local_change.
+flash, freeze, jump_cut, cut, cut_in_speech, silence_in_speech, local_change.
 Reply with JSON only:
 {"looking_for": ["..."], "regions": [{"name": "...", "box": [x0, y0, x1, y1]}], "dense_fps": 8,
  "overview_fps": 1, "signal_kinds": ["..."]}"""

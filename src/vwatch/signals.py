@@ -2,7 +2,8 @@
 
 Computes frame-difference and audio-loudness tracks and turns them into candidate moments
 worth a closer look. These are hints for the agent, not verdicts: a natural scene cut and a
-jump cut look alike here, and so do a sentence pause and an audio dropout.
+jump cut can look alike, and so do a sentence pause and an audio dropout. The freeze and jump-cut
+detectors, and the extra tracks they need, live in `vwatch.detectors`.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vwatch import media
+from vwatch import detectors, media
 
 SIGNAL_WIDTH = 64
 HOP_S = 0.02  # audio loudness hop
@@ -24,7 +25,7 @@ SILENCE_DB = -55.0  # below this = (near) digital silence
 class Candidate:
     t0: float
     t1: float
-    kind: str  # flash | freeze | cut | cut_in_speech | silence_in_speech | local_change
+    kind: str  # flash | freeze | jump_cut | cut | cut_in_speech | silence_in_speech | local_change
     score: float  # 0..1, how unusual
     note: str = ""
 
@@ -41,6 +42,11 @@ class SignalTrack:
     local: np.ndarray  # local[i] = max cell diff / (global diff + 1): >1 means a localized change
     rms_db: np.ndarray  # loudness per HOP_S window
     frames: np.ndarray  # tiny gray frames (N, h, w), kept for flash checks
+    # Richer tracks for vwatch.detectors; None = not computed (the freeze check then trusts the 64 px
+    # diff alone, and no jump cuts are reported without the audio seams).
+    cell_max: np.ndarray | None = None  # mid-res: largest 8x8-cell mean abs diff to the previous frame
+    seam_ratio: np.ndarray | None = None  # per frame boundary: audio transient vs its +-80 ms median
+    seam_peak: np.ndarray | None = None  # per frame boundary: audio transient vs the strongest within +-40 ms
 
     def speech_at(self, t: float) -> bool:
         i = int(t / HOP_S)
@@ -74,10 +80,16 @@ def loudness_db(audio: np.ndarray, sr: int, hop_s: float = HOP_S) -> np.ndarray:
 def compute(path: str | Path) -> SignalTrack:
     gray, info = media.decode_all(path, SIGNAL_WIDTH, gray=True)
     diff, local = frame_diffs(gray)
+    mid, _ = media.decode_all(path, detectors.MID_WIDTH, gray=True)
+    cell_max = detectors.cell_motion(mid)[: len(diff)]
+    del mid
     sr = 16000
     audio = media.extract_audio(path, sr=sr)
+    hi = media.extract_audio(path, sr=detectors.SEAM_SR)
+    seam_ratio, seam_peak = detectors.audio_seams(hi, detectors.SEAM_SR, info.fps, len(diff))
     return SignalTrack(fps=info.fps, duration=info.duration, diff=diff, local=local,
-                       rms_db=loudness_db(audio, sr), frames=gray)
+                       rms_db=loudness_db(audio, sr), frames=gray, cell_max=cell_max,
+                       seam_ratio=seam_ratio, seam_peak=seam_peak)
 
 
 # ------------------------------------------------------------------ detectors
@@ -140,7 +152,11 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
 
 
 def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
-    """Picture perfectly still while sound continues, between stretches of motion."""
+    """Legacy freeze rule: picture perfectly still while sound continues, between stretches of motion.
+
+    Kept for reference and its tests; `find_candidates` uses `vwatch.detectors.detect_freezes`, which
+    also checks stillness at mid resolution and how the hold ends (a gentle restart is a natural pause).
+    """
     still = track.diff < 0.05
     still[0] = False
     moving_level = float(np.median(track.diff[1:])) if len(track.diff) > 1 else 0.0
@@ -201,8 +217,8 @@ def merge(cands: list[Candidate], gap: float = 0.25) -> list[Candidate]:
 
 def find_candidates(track: SignalTrack) -> list[Candidate]:
     flashes = detect_flashes(track)
-    cands = flashes + detect_cuts(track, flashes) + detect_freezes(track) + detect_silences(track)
-    cands += detect_local_changes(track)
+    cands = flashes + detect_cuts(track, flashes) + detectors.detect_freezes(track) + detect_silences(track)
+    cands += detect_local_changes(track) + detectors.detect_jump_cuts(track)
     return merge(cands)
 
 
