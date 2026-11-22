@@ -13,6 +13,8 @@
 
 </div>
 
+> **Result so far (2026-11-22):** on 40 real videos with injected defects, vwatch beats plain frame sampling by **+32 pp F1** (CI +12 to +55), but a plain Claude Code agent running its own ffmpeg analysis beats vwatch by **16 pp** (CI −30 to −2) at about the same cost. vwatch is faster and capped; Claude Code is more accurate. Details in [Head-to-head](#head-to-head-with-claude-code-video-tools).
+
 ## Why
 
 The default way to give a video to a language model is to sample frames evenly (say one per second) and send them with a transcript. Anything shorter than the gap between two frames can fall through: a flash frame, a half-second freeze, a dropped word, a price that is on screen for 400 ms. More frames help, but you pay for every one of them, including the hundreds where nothing happens.
@@ -32,7 +34,7 @@ flowchart LR
 ```
 
 1. **Plan first.** Before seeing a frame, the model reads the question, the video facts and the Whisper transcript, and writes down what it is looking for, which screen regions need a close look, and how densely to sample.
-2. **Skim and predict.** It gets a cheap low-resolution overview plus hints from model-free signals (frame difference, loudness), which play the role of the retina. It predicts what should happen between frames and flags where that prediction is uncertain or wrong.
+2. **Skim and predict.** It gets a cheap low-resolution overview (or, for a clip short enough to fit the budget, the whole clip at watchable size) plus hints from model-free signals (frame difference, loudness), which play the role of the retina. It predicts what should happen between frames and flags where that prediction is uncertain or wrong.
 3. **Focus.** The most surprising windows are served at 8–12 fps, with full-resolution crops of the planned regions and an audio meter.
 4. **Ask for more.** It can request extra `seek` / `crop` / `listen` calls within the budget, then answers with timestamps. Every frame, crop and audio window it looked at is logged, so a claim about a moment it never saw can be caught.
 
@@ -112,7 +114,31 @@ Pilot run, 2026-11-22: `claude-opus-5-5`, 19 pilot videos (13 T1, 2 each of T2�
 ### Head-to-head with Claude Code video tools
 
 <!-- BENCHMARK:START -->
-Head-to-head benchmark vs plain Claude Code, claude-video-vision and popcorn: results landing soon.
+Same model (`claude-opus-5-5`, effort medium) and the same task prompts for every arm. vwatch and the frame baseline run under a 25k evidence-token cap; the Claude Code tools are uncapped, because that is how they are used. Reports: [defects](eval/results/bench-defects-t1x-2026-11-22.md), [TVBench](eval/results/bench-tvbench-2026-11-22.md), [TVBench held-out](eval/results/bench-tvbench-heldout-2026-11-22.md).
+
+<p align="center"><img src="docs/assets/bench-2026-11-22.png" width="100%" alt="Bar charts: defect F1 (Claude Code 0.86, claude-video-vision 0.85, popcorn 0.85, vwatch without prediction 0.72, vwatch 0.69, frames + transcript 0.37), cost per video-minute and TVBench accuracy"></p>
+
+**Defect detection.** 40 openly licensed speech videos from 10 sources in 7 languages, each with one injected defect or none (T1x, [sources](docs/DATA.md)). 240 runs.
+
+| Arm | F1 | Precision | Recall | $ / video-min | s / video-min | Flash | Freeze | Jump cut | Dropout |
+|---|---|---|---|---|---|---|---|---|---|
+| Plain Claude Code | **0.86** | 0.92 | 0.80 | $0.30 | 66 | 7/7 | 6/7 | 3/8 | 8/8 |
+| claude-video-vision | 0.85 | 1.00 | 0.73 | $0.37 | 61 | 7/7 | 5/7 | 2/8 | 8/8 |
+| popcorn | 0.85 | 0.86 | 0.83 | $0.46 | 102 | 7/7 | 6/7 | 5/8 | 7/8 |
+| vwatch without prediction (W-noP) | 0.72 | 1.00 | 0.57 | **$0.18** | 24 | 7/7 | 3/7 | 0/8 | 7/8 |
+| vwatch (W) | 0.69 | 0.82 | 0.60 | $0.28 | 36 | 7/7 | 3/7 | 0/8 | 8/8 |
+| Frames + transcript (B1) | 0.37 | 0.88 | 0.23 | $0.28 | **8** | 1/7 | 5/7 | 1/8 | 0/8 |
+
+Paired differences, bootstrapped over the 10 source clips: W − B1 **+32.4 pp** [+11.5, +54.7]; W − Claude Code **−16.5 pp** [−29.8, −2.0]; W − claude-video-vision −15.4 pp [−28.1, −4.6]; W − popcorn −15.5 pp [−28.5, −4.6]. No arm raised a false alarm on the 10 clean videos.
+
+**Public benchmark (TVBench subset).** 36 multiple-choice questions over 6 temporal categories: frames + transcript 81%, claude-video-vision 81%, popcorn 75%, Claude Code 72%, vwatch 69%. vwatch lost most on 5-second counting clips, where it skimmed at low resolution instead of looking at every frame. After adding a rule to watch short clips in full, it scored 96% on the 24 held-out questions, tied with Claude Code and claude-video-vision; that held-out set turned out easier for every arm (frames + transcript 88%).
+
+**What this says.**
+
+- Uniform frames are blind to anything shorter than the sampling gap: 1 of 7 flash frames, 0 of 8 audio dropouts. Every agentic approach fixes that.
+- The Claude Code agents won by doing what vwatch's detectors do, but more thoroughly: in most runs they ran ffmpeg filters such as `signalstats`, `silencedetect`, scene scores and `freezedetect` over the whole video, then looked at montages of the suspicious moments. That is why they catch freezes and jump cuts and vwatch doesn't.
+- vwatch's advantages are a fixed token cap, repeatable behaviour, a log of every frame it looked at, and speed (36 s per video-minute vs 61–102 s). Its prediction step still doesn't pay for itself: W-noP is as accurate and 35% cheaper.
+- All runs were made through the Claude Code CLI on a Claude plan. Costs are as reported by the backend.
 <!-- BENCHMARK:END -->
 
 ## Eval harness
@@ -220,11 +246,11 @@ The default model is `claude-opus-5-5` (`--model` to change it, `--effort` for r
 
 From the pilot verdict, in rough order:
 
-- [ ] **Rework the prediction step.** It currently adds cost without measurable gain over signals-only attention (W-noP).
-- [ ] **Jump cuts, frozen frames and false alarms on clean videos.** Both arms miss jump cuts and flag half the clean videos; vwatch misses freezes that plain frames catch.
+- [ ] **Close the gap to Claude Code on defects.** Add full-pass detectors like the ones the agents improvised (ffmpeg `freezedetect`, `signalstats`, audio/video seam checks for jump cuts), since freezes and jump cuts are where all of the gap is.
+- [ ] **Rework or drop the prediction step.** It adds cost without measurable gain over signals-only attention (W-noP), on both the pilot and the defect benchmark.
 - [ ] **More sources.** T1 rests on 4 source clips; more (the T1x Commons set is the start) narrows the confidence intervals more than anything else.
 - [ ] **Full run**: all arms × all videos × 3 repeats, thresholds locked first.
-- [ ] **Head-to-head** with plain Claude Code, claude-video-vision and popcorn (in progress).
+- [x] **Head-to-head** with plain Claude Code, claude-video-vision and popcorn (2026-11-22, above).
 - [ ] **A Gemini-backed comparison**, since Gemini takes video natively.
 
 ## Contributing
