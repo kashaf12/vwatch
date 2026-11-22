@@ -12,10 +12,57 @@ teaches it the method through the `watch-video` skill.
 
 ## Install
 
-Requirements: [uv](https://docs.astral.sh/uv/) and `ffmpeg` / `ffprobe` on `PATH`. The server is launched
-with `uvx` from a pinned git tag, so no clone is needed. The first `video_transcript` (or `video_listen`)
-call downloads the local whisper model (`VWATCH_WHISPER_MODEL`, default `small`); transcripts are cached in
-`~/.cache/vwatch/` (`VWATCH_CACHE`).
+**macOS and Linux: nothing to install first.** The plugin starts the server through a small launcher
+([`plugins/vwatch/bin/vwatch-mcp`](../plugins/vwatch/bin/vwatch-mcp)) that:
+
+1. uses `uvx` from `PATH`, `~/.local/bin` or `~/.cargo/bin`, or else installs [uv](https://docs.astral.sh/uv/)
+   into `~/.local/bin` with the official installer (no sudo, shell profiles untouched; set
+   `VWATCH_UV_INSTALL=0` to forbid this and get an error instead);
+2. runs `uvx --python ">=3.11,<3.13" --from "vwatch[mcp] @ git+...@vX.Y.Z" vwatch-mcp`; uv downloads a
+   Python if no 3.11/3.12 is installed (newer Pythons are skipped: onnxruntime, used by faster-whisper,
+   has no wheels for 3.15 yet);
+3. vwatch then finds ffmpeg/ffprobe: `VWATCH_FFMPEG`/`VWATCH_FFPROBE` if set, else the system ones on
+   `PATH`, else a static build from [static-ffmpeg](https://github.com/zackees/static_ffmpeg), downloaded
+   once in the background when the server starts to `~/.cache/vwatch/ffmpeg/<platform>` (`VWATCH_CACHE`).
+
+One-time first-run download, measured from an empty `HOME` with no uv, Python 3.11+ or ffmpeg:
+
+| Platform | uv | Python | vwatch + deps | static ffmpeg + ffprobe | Total | Time |
+|---|---|---|---|---|---|---|
+| macOS arm64 | 15 MB | 25 MB | 86 MB | 42 MB | ~170 MB | ~35 s (21 s to a running server, then ffmpeg in the background) |
+| Linux x86_64 | 17 MB | ~30 MB | ~110 MB | 142 MB | ~300 MB | see the `Fresh install` CI job |
+
+The first tool call after a fresh install takes ~15 s more on macOS (one-time Python bytecode compilation and
+the OS's first-run check of the new native binaries). Later starts take about a second. The first start can be slower than Claude Code's MCP startup timeout on a
+slow connection; if `/mcp` shows vwatch as failed, reconnect it once the download is done (or start Claude
+Code with `MCP_TIMEOUT=120000`). The launcher prints its progress to stderr only (stdout is the MCP
+channel).
+
+Also downloaded on first use: the whisper model, by the first `video_transcript` (or `video_listen`) call
+(`VWATCH_WHISPER_MODEL`, default `small`, ~480 MB); transcripts are cached in `~/.cache/vwatch/`
+(`VWATCH_CACHE`).
+
+**Use your own ffmpeg**: put `ffmpeg` and `ffprobe` on `PATH` (`brew install ffmpeg`,
+`sudo apt install ffmpeg`), or point `VWATCH_FFMPEG` / `VWATCH_FFPROBE` at the binaries. Then nothing is
+downloaded. The static builds are GPL-licensed FFmpeg builds (BtbN on Linux, gyan.dev on Windows,
+evermeet.cx / osxexperts on macOS) mirrored by static-ffmpeg on GitHub; vwatch does not redistribute them.
+
+**Pin a local checkout** (testing): `VWATCH_SPEC='vwatch[mcp] @ file:///path/to/vwatch'` in the environment
+replaces the plugin's `--from` requirement.
+
+### Windows
+
+The launcher is a POSIX `sh` script and plugin MCP configs cannot choose a command per OS, so on native
+Windows the plugin's server only starts if `sh` is on `PATH` (for example Git for Windows'
+`C:\Program Files\Git\bin`) and uv is installed; this is untested. The reliable route on Windows:
+
+```powershell
+winget install astral-sh.uv          # then open a new terminal
+claude mcp add vwatch -s user -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp
+```
+
+ffmpeg is fetched automatically (static-ffmpeg has Windows x64 builds) unless `ffmpeg`/`ffprobe` are on
+`PATH` (`winget install ffmpeg`). Under WSL everything works as on Linux.
 
 ### Claude Code plugin
 
@@ -35,7 +82,7 @@ The plugin contains:
 ### Claude Code without the plugin
 
 ```bash
-claude mcp add vwatch -- uvx --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp
+claude mcp add vwatch -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp
 ```
 
 (tools appear as `mcp__vwatch__video_info`, ...; add `-s user` to make it available in every project).
@@ -50,14 +97,18 @@ Add to the client's MCP config (`claude_desktop_config.json` for Claude Desktop,
   "mcpServers": {
     "vwatch": {
       "command": "uvx",
-      "args": ["--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
+      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
     }
   }
 }
 ```
 
-GUI apps often start with a minimal `PATH`; if the client cannot find `uvx` or `ffmpeg`, use the absolute
-path to `uvx` (`which uvx`) and add `"env": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"}`.
+GUI apps often start with a minimal `PATH`; if the client cannot find `uvx`, use its absolute path
+(`which uvx`). Without ffmpeg on that `PATH` vwatch fetches its static build (see above); to use a system
+ffmpeg add `"env": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"}` or
+`"env": {"VWATCH_FFMPEG": "/opt/homebrew/bin/ffmpeg", "VWATCH_FFPROBE": "/opt/homebrew/bin/ffprobe"}`.
+Or use the launcher from a clone: `"command": "sh", "args": ["/path/to/vwatch/plugins/vwatch/bin/vwatch-mcp",
+"--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]`.
 
 ### From a clone
 
@@ -121,6 +172,7 @@ Model-free candidate moments computed from every frame (64 px grey) and the audi
 | `cut` | abrupt picture change |
 | `cut_in_speech` | abrupt picture change while sound is on (jump-cut candidate) |
 | `freeze` | picture perfectly still while sound continues, between motion |
+| `jump_cut` | a one-frame picture jump well above the nearby motion plus an audio splice click, inside speech |
 | `silence_in_speech` | near-digital silence with sound on both sides (dropout candidate) |
 | `local_change` | change confined to one region (overlay, caption, UI) |
 
@@ -191,6 +243,6 @@ The full text is in [`plugins/vwatch/skills/watch-video/SKILL.md`](../plugins/vw
 ## Releasing
 
 `plugins/vwatch/.claude-plugin/plugin.json` holds the plugin `version` and the git tag in the
-`uvx --from ...@vX.Y.Z` argument. Bump both together with `pyproject.toml` and `src/vwatch/__init__.py`
+`--from ...@vX.Y.Z` argument the launcher passes to `uvx` (the launcher itself has no version). Bump both together with `pyproject.toml` and `src/vwatch/__init__.py`
 (`tests/test_mcp_server.py::TestPlugin::test_versions_agree` fails if they disagree), then push the tag
 `vX.Y.Z`: until the tag exists, the plugin's server cannot start.

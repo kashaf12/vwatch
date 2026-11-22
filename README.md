@@ -22,8 +22,9 @@
 /plugin install vwatch@vwatch
 ```
 
-You get seven video tools (frame grids, dense seek, crop, transcript, loudness, signal hints) and a `watch-video` skill. No model calls, no API key; needs [uv](https://docs.astral.sh/uv/) and `ffmpeg`.
-Other MCP clients: `claude mcp add vwatch -- uvx --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`, or see [docs/mcp.md](docs/mcp.md) for Cursor and Claude Desktop. More in [Use it in your agent](#use-it-in-your-agent).
+You get seven video tools (frame grids, dense seek, crop, transcript, loudness, signal hints) and a `watch-video` skill. No model calls, no API key.
+**Nothing to install on macOS or Linux:** on first start the plugin fetches [uv](https://docs.astral.sh/uv/) (into `~/.local/bin`, no sudo), Python and vwatch, and a static ffmpeg/ffprobe if you have none (into `~/.cache/vwatch/ffmpeg`). One-time download: about 170 MB / 35 s on Apple Silicon, about 300 MB on Linux x86_64 (the Linux ffmpeg build alone is 142 MB). A system ffmpeg on `PATH` is used instead when present. The first `video_transcript` also downloads a whisper model (~480 MB for the default `small`). Windows: install uv first (`winget install astral-sh.uv`), see [docs/mcp.md](docs/mcp.md#windows).
+Other MCP clients: `claude mcp add vwatch -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`, or see [docs/mcp.md](docs/mcp.md) for Cursor and Claude Desktop. More in [Use it in your agent](#use-it-in-your-agent).
 
 ## Why
 
@@ -89,7 +90,7 @@ Hints are not verdicts: a held frame before an edit looks like a freeze, an edit
 
 The [head-to-head](#head-to-head-with-claude-code-video-tools) showed that a capable agent steering its own tools beats vwatch's nested watcher loop. So the plugin does not run a second model inside your agent: it gives your agent vwatch's perception primitives as MCP tools, and a skill that teaches the method (plan first, take the free signals, skim once, zoom only on surprises, cite timestamps).
 
-**Claude Code** (no clone needed; the server runs via `uvx`):
+**Claude Code** (no clone needed; the plugin's launcher installs uv if missing and runs the server via `uvx`):
 
 ```
 /plugin marketplace add kashaf12/vwatch
@@ -102,7 +103,7 @@ Then ask about any local video, or run `/vwatch:watch path/to/video.mp4 Are ther
 |---|---|---|
 | `video_info` | duration, fps, size, audio, speech (voice-activity check), what an overview / seek will cost | ~100 tokens |
 | `video_transcript` | timestamped segments (optionally every word), local whisper, cached; `t0`/`t1` window | ~300 tokens per 50 s of speech |
-| `video_signals` | model-free candidate moments: flash, freeze, cut, cut_in_speech, silence_in_speech, local_change | ~1k tokens for 30 hints |
+| `video_signals` | model-free candidate moments: flash, freeze, jump_cut, cut, cut_in_speech, silence_in_speech, local_change | ~1k tokens for 30 hints |
 | `video_overview` | tiled low-res frames of the whole video with burned-in timestamps; short clips shown whole | ~2.3k tokens for a 50 s clip (50 frames), max ~10k |
 | `video_seek` | up to 16 consecutive frames in a window (default 8 fps) | ~1k tokens |
 | `video_crop` | one frame, cropped to a normalized box, at source resolution | ~100-800 tokens |
@@ -117,13 +118,13 @@ Every result starts with a line naming the timestamps shown and an estimated tok
   "mcpServers": {
     "vwatch": {
       "command": "uvx",
-      "args": ["--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
+      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
     }
   }
 }
 ```
 
-or `claude mcp add vwatch -- uvx --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`. From a clone: `uv run --project /path/to/vwatch vwatch-mcp` (or `vw mcp`).
+or `claude mcp add vwatch -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`. From a clone: `uv run --project /path/to/vwatch vwatch-mcp` (or `vw mcp`).
 
 ## Results
 

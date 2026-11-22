@@ -24,6 +24,10 @@ vwatch in your own agent. The head-to-head showed a capable agent steering its o
 - **Claude Code plugin** `plugins/vwatch/` and marketplace `.claude-plugin/marketplace.json`: `/plugin marketplace add kashaf12/vwatch`, then `/plugin install vwatch@vwatch`. The plugin bundles the MCP server, launched with `uvx` from the pinned git tag, so no clone is needed. It also adds the `watch-video` skill (plan, then free signals, then skim, then zoom on surprises, then cite timestamps) and the `/vwatch:watch <path> [question]` command.
 - `docs/mcp.md`: tool reference, and config snippets for `claude mcp add`, Claude Desktop and Cursor.
 - `vwatch.mcp_tools`: the same tools as plain Python functions.
+- **Zero-prerequisite plugin start on macOS/Linux**: the plugin launches the server through `plugins/vwatch/bin/vwatch-mcp`, which installs uv into `~/.local/bin` when it is missing (official installer, no sudo, stdout kept clean for MCP) and pins `--python ">=3.11,<3.13"`. `VWATCH_SPEC` overrides the install spec.
+- **ffmpeg without a system install**: `vwatch.media` resolves ffmpeg/ffprobe from `VWATCH_FFMPEG`/`VWATCH_FFPROBE`, then `PATH`, then a static build fetched once by [static-ffmpeg](https://github.com/zackees/static_ffmpeg) (new dependency of the `mcp` extra) into `~/.cache/vwatch/ffmpeg/`. The MCP server prefetches it in the background at startup.
+- `video_signals` accepts and documents the `jump_cut` kind and rejects unknown kinds with the list of valid ones (`signals.KINDS`).
+- `.github/workflows/fresh-install.yml` + `scripts/smoke_mcp.py`: installs and runs the plugin on Ubuntu and macOS runners with no uv and no ffmpeg, and calls the tools over MCP.
 
 ## [0.1.0] - 2026-11-22
 

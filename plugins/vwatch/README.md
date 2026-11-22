@@ -20,10 +20,14 @@ Then: `/vwatch:watch path/to/video.mp4 Are there any flash frames or audio dropo
 
 The tools make no model calls and need no API key; the only cost is your agent's own usage.
 
-**Requirements**: [uv](https://docs.astral.sh/uv/) (the server runs via `uvx`, no clone needed) and
-`ffmpeg`/`ffprobe` on `PATH`. The first `video_transcript` call downloads a local whisper model.
+**Requirements**: none on macOS/Linux. On first start the launcher (`bin/vwatch-mcp`) installs
+[uv](https://docs.astral.sh/uv/) into `~/.local/bin` if it is missing, uv fetches Python and vwatch, and
+vwatch fetches a static ffmpeg/ffprobe if none is on `PATH` (one-time, ~170 MB on macOS, ~300 MB on Linux).
+A system ffmpeg, or `VWATCH_FFMPEG`/`VWATCH_FFPROBE`, is used when present. The first `video_transcript`
+call downloads a local whisper model. Windows: see docs/mcp.md (install uv with `winget install astral-sh.uv`).
 
 Full tool reference: [docs/mcp.md](https://github.com/kashaf12/vwatch/blob/main/docs/mcp.md).
 
 **Bumping the version**: `.claude-plugin/plugin.json` holds both `version` and the git tag in the
-`uvx --from ...@vX.Y.Z` argument; `tests/test_mcp_server.py` checks they match `pyproject.toml`.
+`--from ...@vX.Y.Z` argument it passes to `bin/vwatch-mcp`; `tests/test_mcp_server.py` checks they match
+`pyproject.toml`. The launcher has no version of its own.
