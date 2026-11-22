@@ -1,13 +1,13 @@
 [project]
 name = "vwatch"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent toolkit that watches video like a person (question-first plan, prediction-error attention, dense seek/crop/listen on surprising moments), plus an eval harness against uniform frame sampling."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "kashaf12" }]
 requires-python = ">=3.11"
-keywords = ["video", "video-understanding", "llm", "agent", "claude", "evaluation", "benchmark", "multimodal", "ffmpeg", "whisper"]
+keywords = ["video", "mcp", "mcp-server", "claude-code-plugin", "video-understanding", "llm", "agent", "claude", "evaluation", "benchmark", "multimodal", "ffmpeg", "whisper"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -38,12 +38,14 @@ Changelog = "https://github.com/kashaf12/vwatch/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 api = ["anthropic>=0.70"]
+mcp = ["mcp>=2.3,<3"]  # MCP server: `vwatch-mcp` / `vw mcp`
 
 [project.scripts]
 vw = "vwatch.cli:main"
+vwatch-mcp = "vwatch.mcp_server:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-cov>=5"]
+dev = ["pytest>=8", "pytest-cov>=5", "mcp>=2.3,<3"]
 
 [build-system]
 requires = ["hatchling>=1.27"]

@@ -3,6 +3,7 @@
     vw watch VIDEO -q "question"        watch any video with the watcher and answer a question
     vw watch VIDEO --arm B1 -q "..."    same question through a baseline, for comparison
     vw signals VIDEO                    print the low-level signal hints
+    vw mcp                              run the MCP server (stdio) with the video tools for your agent
     vw dataset build [...]              build the eval dataset
     vw eval run [...]                   run arms over the dataset
     vw eval report [...]                score runs and write the report
@@ -102,6 +103,10 @@ def _dispatch(argv: list[str]) -> int:
         return _watch(rest)
     if cmd == "signals":
         return _signals(rest)
+    if cmd == "mcp":
+        from vwatch.mcp_server import main as mcp_main
+
+        return mcp_main(rest)
     if cmd == "dataset" and rest[:1] == ["build"]:
         from vwatch.dataset.build import main as build_main
 

@@ -14,6 +14,17 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Freeze detector** rewritten: near-zero frame difference confirmed cell by cell at mid resolution, sound on, motion around, and judged by how the hold ends (catch-up jump 0.9, scene cut 0.55, gentle restart dropped as a natural pause). The old rule stays as `signals.detect_freezes` for reference.
 - `signals.compute` also decodes a 128 px gray track and 44.1 kHz audio for these detectors (about 0.8 s per video-minute in total).
 
+## [0.2.0] - unreleased (draft)
+
+vwatch in your own agent. The head-to-head showed a capable agent steering its own tools beats vwatch's nested watcher loop, so this release gives agents vwatch's perception primitives instead of a second model.
+
+### Added
+
+- **MCP server** (`vwatch-mcp`, `vw mcp`; `mcp` extra, MCP Python SDK 2.x, stdio): seven read-only tools, `video_info`, `video_transcript`, `video_signals`, `video_overview`, `video_seek`, `video_crop`, `video_listen`. No model calls, no API key. Images come back as JPEG with burned-in timestamps. Every result states the timestamps shown and an estimated token cost. Responses are capped: overview at 96 frames and about 10k tokens, seek at 16 frames and a 60 s window, listen at 30 s, text at 48k characters. Per-video work (probe, signal track, voice activity, transcripts) is cached in-process by (path, mtime, size). Bad files and arguments return tool errors and never crash the server.
+- **Claude Code plugin** `plugins/vwatch/` and marketplace `.claude-plugin/marketplace.json`: `/plugin marketplace add kashaf12/vwatch`, then `/plugin install vwatch@vwatch`. The plugin bundles the MCP server, launched with `uvx` from the pinned git tag, so no clone is needed. It also adds the `watch-video` skill (plan, then free signals, then skim, then zoom on surprises, then cite timestamps) and the `/vwatch:watch <path> [question]` command.
+- `docs/mcp.md`: tool reference, and config snippets for `claude mcp add`, Claude Desktop and Cursor.
+- `vwatch.mcp_tools`: the same tools as plain Python functions.
+
 ## [0.1.0] - 2026-11-22
 
 First public release.
@@ -30,5 +41,6 @@ First public release.
 - **Pilot result** (`eval/results/pilot-2026-11-22.md`): verdict ITERATE.
 - `vw` CLI: `watch`, `signals`, `dataset build`, `eval run`, `eval report`.
 
-[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kashaf12/vwatch/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kashaf12/vwatch/releases/tag/v0.1.0

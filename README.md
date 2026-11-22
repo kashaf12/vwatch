@@ -15,6 +15,16 @@
 
 > **Result so far (2026-11-22):** on 40 real videos with injected defects, vwatch beats plain frame sampling by **+32 pp F1** (CI +12 to +55), but a plain Claude Code agent running its own ffmpeg analysis beats vwatch by **16 pp** (CI −30 to −2) at about the same cost. vwatch is faster and capped; Claude Code is more accurate. Details in [Head-to-head](#head-to-head-with-claude-code-video-tools).
 
+### Add vwatch to your agent
+
+```
+/plugin marketplace add kashaf12/vwatch
+/plugin install vwatch@vwatch
+```
+
+You get seven video tools (frame grids, dense seek, crop, transcript, loudness, signal hints) and a `watch-video` skill. No model calls, no API key; needs [uv](https://docs.astral.sh/uv/) and `ffmpeg`.
+Other MCP clients: `claude mcp add vwatch -- uvx --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`, or see [docs/mcp.md](docs/mcp.md) for Cursor and Claude Desktop. More in [Use it in your agent](#use-it-in-your-agent).
+
 ## Why
 
 The default way to give a video to a language model is to sample frames evenly (say one per second) and send them with a transcript. Anything shorter than the gap between two frames can fall through: a flash frame, a half-second freeze, a dropped word, a price that is on screen for 400 ms. More frames help, but you pay for every one of them, including the hundreds where nothing happens.
@@ -74,6 +84,46 @@ $ uv run vw signals clip.mp4        # a public-domain speech clip with a 3-frame
 ```
 
 Hints are not verdicts: a held frame before an edit looks like a freeze, an edit in the source looks like a jump cut, and a sentence pause looks like an audio dropout. Deciding which is which is the model's job. `eval/bench/eval_signals.py` measures the detectors alone (recall, precision, false alarms per clean minute) with no model calls.
+
+## Use it in your agent
+
+The [head-to-head](#head-to-head-with-claude-code-video-tools) showed that a capable agent steering its own tools beats vwatch's nested watcher loop. So the plugin does not run a second model inside your agent: it gives your agent vwatch's perception primitives as MCP tools, and a skill that teaches the method (plan first, take the free signals, skim once, zoom only on surprises, cite timestamps).
+
+**Claude Code** (no clone needed; the server runs via `uvx`):
+
+```
+/plugin marketplace add kashaf12/vwatch
+/plugin install vwatch@vwatch
+```
+
+Then ask about any local video, or run `/vwatch:watch path/to/video.mp4 Are there any flash frames, freezes, jump cuts or audio dropouts?`
+
+| Tool | What it returns | Typical size |
+|---|---|---|
+| `video_info` | duration, fps, size, audio, speech (voice-activity check), what an overview / seek will cost | ~100 tokens |
+| `video_transcript` | timestamped segments (optionally every word), local whisper, cached; `t0`/`t1` window | ~300 tokens per 50 s of speech |
+| `video_signals` | model-free candidate moments: flash, freeze, cut, cut_in_speech, silence_in_speech, local_change | ~1k tokens for 30 hints |
+| `video_overview` | tiled low-res frames of the whole video with burned-in timestamps; short clips shown whole | ~2.3k tokens for a 50 s clip (50 frames), max ~10k |
+| `video_seek` | up to 16 consecutive frames in a window (default 8 fps) | ~1k tokens |
+| `video_crop` | one frame, cropped to a normalized box, at source resolution | ~100-800 tokens |
+| `video_listen` | loudness every 0.1 s (`sil` = silence) and the words heard | ~80 tokens per 1.5 s |
+
+Every result starts with a line naming the timestamps shown and an estimated token cost, so the agent can budget. The tools make no model calls and need no API key: they cost nothing beyond your agent's own usage. They read local files only; the first `video_transcript` downloads the whisper model.
+
+**Other MCP clients** (Cursor, Claude Desktop, Windsurf, ...): add this to the client's MCP config (full reference in [docs/mcp.md](docs/mcp.md)):
+
+```json
+{
+  "mcpServers": {
+    "vwatch": {
+      "command": "uvx",
+      "args": ["--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
+    }
+  }
+}
+```
+
+or `claude mcp add vwatch -- uvx --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`. From a clone: `uv run --project /path/to/vwatch vwatch-mcp` (or `vw mcp`).
 
 ## Results
 
@@ -228,6 +278,8 @@ The default model is `claude-opus-5-5` (`--model` to change it, `--effort` for r
 | Path | What |
 |---|---|
 | `src/vwatch/cli.py` | The `vw` command |
+| `src/vwatch/mcp_tools.py`, `mcp_server.py` | The video tools for your own agent, and the MCP server (`vwatch-mcp`) |
+| `plugins/vwatch/`, `.claude-plugin/marketplace.json` | Claude Code plugin (MCP server, `watch-video` skill, `/vwatch:watch`) and its marketplace |
 | `src/vwatch/media.py`, `imaging.py` | ffmpeg I/O, frame grids, crops, timestamps, token estimates |
 | `src/vwatch/signals.py` | Model-free perception: flashes, cuts, freezes, silences, local changes |
 | `src/vwatch/detectors.py` | Full-pass freeze and jump-cut detectors (mid-res stillness, catch-up jump, audio splice click on a frame boundary) |
@@ -241,7 +293,7 @@ The default model is `claude-opus-5-5` (`--model` to change it, `--effort` for r
 | `eval/bench/` | Fixed video-id lists for benchmark runs |
 | `docs/` | [Eval protocol](docs/eval-protocol.md), [dataset spec](docs/dataset-spec.md), [data and licenses](docs/DATA.md) |
 | `scripts/setup_external.sh` | Pinned install of the third-party tools for the external arms |
-| `tests/` | ~550 tests; fakes only, no network or model calls |
+| `tests/` | ~620 tests; fakes only, no network or model calls |
 
 ## Roadmap
 
