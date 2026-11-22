@@ -19,6 +19,7 @@ SIGNAL_WIDTH = 64
 HOP_S = 0.02  # audio loudness hop
 SPEECH_DB = -38.0  # above this = sound present
 SILENCE_DB = -55.0  # below this = (near) digital silence
+KINDS = ("flash", "freeze", "jump_cut", "cut", "cut_in_speech", "silence_in_speech", "local_change")
 
 
 @dataclass(frozen=True)

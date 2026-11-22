@@ -201,6 +201,31 @@ class TestSignals:
         txt = _texts(mt.video_signals(str(tone_video)))[0]
         assert txt.startswith("SIGNALS:")
 
+    def test_unknown_kind_lists_the_valid_ones(self, tone_video):
+        with pytest.raises(mt.VideoToolError, match="unknown signal kind.*'jumpcut'.*valid kinds: .*jump_cut"):
+            mt.video_signals(str(tone_video), kinds=["flash", "jumpcut"])
+
+    def test_jump_cut_is_a_known_kind(self, tone_video, monkeypatch):
+        from vwatch.signals import KINDS, Candidate
+
+        assert "jump_cut" in KINDS
+        monkeypatch.setattr(mt.signals, "find_candidates",
+                            lambda track: [Candidate(1.0, 1.0, "jump_cut", 0.8, "splice"),
+                                           Candidate(2.0, 2.0, "cut", 0.4, "b")])
+        txt = _texts(mt.video_signals(str(tone_video), kinds=["jump_cut"]))[0]
+        assert "1 of 2" in txt and "jump_cut" in txt and "00:02.00" not in txt
+
+    def test_server_describes_every_kind(self):
+        pytest.importorskip("mcp")
+        import anyio
+
+        from vwatch.mcp_server import DESCRIPTIONS, build_server
+        from vwatch.signals import KINDS
+
+        tool = next(t for t in anyio.run(build_server().list_tools) if t.name == "video_signals")
+        kinds_doc = tool.input_schema["properties"]["kinds"]["description"]
+        assert all(k in DESCRIPTIONS["video_signals"] and k in kinds_doc for k in KINDS)
+
     @pytest.mark.parametrize("bad", [{"top": 0}, {"top": 1000}, {"kinds": "flash"}])
     def test_bad_args(self, tone_video, bad):
         with pytest.raises(mt.VideoToolError):

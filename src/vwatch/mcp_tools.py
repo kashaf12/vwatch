@@ -287,9 +287,13 @@ def video_signals(path: str, kinds: list[str] | None = None, top: int = 40) -> l
     k = int(_num("top", top, SIGNALS_TOP_RANGE[0], SIGNALS_TOP_RANGE[1]))
     if kinds is not None and (not isinstance(kinds, list | tuple) or not all(isinstance(x, str) for x in kinds)):
         raise VideoToolError("kinds must be a list of strings, e.g. ['flash', 'freeze']")
+    wanted = tuple(x.strip() for x in kinds) if kinds else None
+    unknown = [x for x in wanted or () if x not in signals.KINDS]
+    if unknown:
+        raise VideoToolError(f"unknown signal kind(s) {', '.join(map(repr, unknown))}; "
+                             f"valid kinds: {', '.join(signals.KINDS)}")
     e = _with_track(e)
     cands = signals.find_candidates(e.track)
-    wanted = tuple(x.strip() for x in kinds) if kinds else None
     hints = select_hints(cands, wanted, k)
     present = sorted({c.kind for c in cands})
     head = (f"SIGNALS: {len(hints)} of {len(cands)} candidate moments"

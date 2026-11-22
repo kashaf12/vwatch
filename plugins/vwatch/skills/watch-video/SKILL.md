@@ -25,7 +25,7 @@ signal kinds matter.
 |---|---|---|
 | flash frame / glitch frame | `flash` | `video_seek` at 30 fps over <= 0.5 s |
 | frozen picture | `freeze` | `video_seek` across the span: identical frames while audio continues |
-| jump cut / bad edit | `cut_in_speech`, `cut` | `video_seek` +-0.5 s, plus `video_listen` (a cut mid-word) |
+| jump cut / bad edit | `jump_cut`, `cut_in_speech`, `cut` | `video_seek` +-0.5 s, plus `video_listen` (a cut mid-word) |
 | audio dropout / mute | `silence_in_speech` | `video_listen`: a run of `sil` while words continue around it |
 | overlay, caption, UI change | `local_change` | `video_crop` on that region |
 | what is said | - | `video_transcript` (add `words: true` for exact word times) |

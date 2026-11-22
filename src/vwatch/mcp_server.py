@@ -19,7 +19,7 @@ from typing import Annotated, Any
 from pydantic import Field
 
 from vwatch import __version__, mcp_tools
-from vwatch import media
+from vwatch import media, signals
 from vwatch.media import FFmpegNotFoundError, MediaError
 
 log = logging.getLogger("vwatch.mcp")
@@ -40,9 +40,9 @@ DESCRIPTIONS = {
     "video_transcript": "Timestamped speech transcript (local whisper, cached; the first call on a file can take a "
                         "while, and the first ever call downloads the whisper model). Optional t0/t1 window and "
                         "word-level timestamps.",
-    "video_signals": "Model-free candidate moments computed from every frame and the audio: flash, freeze, cut, "
-                     "cut_in_speech, silence_in_speech, local_change (score 0..1). Hints, not verdicts: they say "
-                     "where to look. Text only, cheap.",
+    "video_signals": "Model-free candidate moments computed from every frame and the audio: flash, freeze, "
+                     "jump_cut, cut, cut_in_speech, silence_in_speech, local_change (score 0..1). Hints, not "
+                     "verdicts: they say where to look. Text only, cheap.",
     "video_overview": "Low-resolution tiled frame grids of the whole video with timestamps burned in. Short clips are "
                       "shown whole at watchable size; longer ones are skimmed (capped at 96 frames / ~10k tokens). "
                       "Optional fps and tile_width (90-360 px) override the automatic choice.",
@@ -119,8 +119,8 @@ def build_server():
     @tool
     def video_signals(
         path: Path_,
-        kinds: Annotated[list[str] | None, Field(description="Only these kinds, e.g. ['flash', 'freeze']. "
-                                                             "Default: all.")] = None,
+        kinds: Annotated[list[str] | None, Field(description=f"Only these kinds ({', '.join(signals.KINDS)}), "
+                                                             "e.g. ['flash', 'jump_cut']. Default: all.")] = None,
         top: Annotated[int, Field(description="How many highest-scoring moments to return (1-200).", ge=1,
                                   le=200)] = 40,
     ) -> list[Any]:
