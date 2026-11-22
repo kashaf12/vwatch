@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **Jump-cut detector** (`jump_cut` signal kind): a single-frame picture jump well above the nearby motion plus an audio splice click on the same frame boundary, inside speech (`vwatch.detectors`). The watcher's plan can select it.
+- `eval/bench/eval_signals.py`: model-free evaluation of the signal candidates per defect type (recall at +-0.5 s, per-kind precision, candidates per clean minute) on the dev split, the original T1 set or the held-out benchmark ids.
+
+### Changed
+
+- **Freeze detector** rewritten: near-zero frame difference confirmed cell by cell at mid resolution, sound on, motion around, and judged by how the hold ends (catch-up jump 0.9, scene cut 0.55, gentle restart dropped as a natural pause). The old rule stays as `signals.detect_freezes` for reference.
+- `signals.compute` also decodes a 128 px gray track and 44.1 kHz audio for these detectors (about 0.8 s per video-minute in total).
+
 ## [0.1.0] - 2026-11-22
 
 First public release.
