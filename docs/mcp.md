@@ -5,7 +5,7 @@ call tools and look at images. The tools make **no model calls and need no API k
 video file into evidence (timestamped frame grids, crops, a transcript, a loudness meter, model-free
 signal hints). Your agent does the watching; the only cost is its own usage.
 
-Why tools and not the watcher: in the [head-to-head](../README.md#head-to-head-with-claude-code-video-tools)
+Why tools and not the watcher: in the [head-to-head](benchmark.md#head-to-head-with-claude-code-video-tools)
 a Claude Code agent steering ffmpeg beat vwatch's own nested watcher loop. Running a second model inside
 your agent adds cost and a layer of summarisation; the plugin instead gives your agent the primitives and
 teaches it the method through the `watch-video` skill.
