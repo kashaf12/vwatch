@@ -381,3 +381,24 @@ class TestObservations:
         script = make_fake(tmp_path, [{"events": odd + [result(ANSWER, 0.1)]}])
         out = ex.run_external(Arm.CC, video_ctx, Task.DEFECTS, "T", None, cfg_for(tmp_path, script))
         assert out.error is None and out.parsed is not None
+
+
+class TestAuditInlineCode:
+    """Division in inline Python must not read as the filesystem root; real root access still must."""
+
+    W = Path("/tmp/vwatch-ext/x/work")
+
+    def _flags(self, command):
+        from vwatch.arms.external_audit import audit
+        from vwatch.arms.external_audit import ToolCall
+
+        return audit((ToolCall("i", "Bash", {"command": command}),), self.W)
+
+    def test_division_in_python_c_is_clean(self):
+        assert self._flags('python3 -c "\nt=open(\'stats.txt\').read()\nprint(len(t) / 2)\n"') == ()
+
+    def test_quoted_root_in_python_c_is_flagged(self):
+        assert self._flags('python3 -c "import os; print(os.listdir(\'/\'))"')
+
+    def test_bare_root_in_shell_is_still_flagged(self):
+        assert self._flags("grep -r secret /")

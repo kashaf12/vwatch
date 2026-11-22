@@ -20,6 +20,8 @@ ALLOWED_SYSTEM_PATHS: tuple[str, ...] = ("/dev/null", "/dev/stdout", "/dev/stder
 _SKIP_KEYS = frozenset({"description"})  # free-text explanation fields, not paths
 _ABS_PATH = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))(/[A-Za-z0-9._~\-][^\s'"|;&<>(),]*)""")
 _FS_ROOT = re.compile(r"""(?:^|(?<=[\s'"=]))/(?=$|[\s'"|;&<>)])""")  # a bare "/" (e.g. grep -r x /)
+_QUOTED_ROOT = re.compile(r"""['"]/['"]""")  # "/" as a string literal inside inline code
+_INLINE_CODE = re.compile(r"\bpython3?\b[^\n]*?\s-c\b|<<")  # python -c "..." or a heredoc
 _HOME_PATH = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))(~[^\s'"|;&<>(),]*)""")
 _PARENT = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))(\.\.(?:/[^\s'"|;&<>(),]*)?)(?=$|[\s'"|;&<>(),])""")
 _REL_WITH_PARENT = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))([A-Za-z0-9._\-][^\s'"|;&<>(),]*/\.\.(?:/[^\s'"|;&<>(),]*)?)""")
@@ -102,13 +104,15 @@ def _inside(path: str, roots: tuple[str, ...]) -> bool:
     return any(norm == r or norm.startswith(r.rstrip("/") + "/") for r in roots)
 
 
-def _path_problems(text: str, workdir: Path, roots: tuple[str, ...]) -> list[str]:
+def _path_problems(text: str, workdir: Path, roots: tuple[str, ...], *, code: bool = False) -> list[str]:
+    """Paths in `text` that leave the workdir. In inline code (`code=True`) a bare "/" is usually the
+    division operator, so only a quoted "/" string counts as the filesystem root there."""
     found: list[str] = []
     for m in _ABS_PATH.finditer(text):
         p = m.group(1).rstrip(".:")
         if not _inside(p, roots):
             found.append(f"path outside workdir: {p}")
-    if _FS_ROOT.search(text):
+    if (_QUOTED_ROOT if code else _FS_ROOT).search(text):
         found.append("path outside workdir: /")
     for m in _HOME_PATH.finditer(text):
         found.append(f"home path: {m.group(1)}")
@@ -126,8 +130,9 @@ def _bash_problems(command: str, cwd: Path, roots: tuple[str, ...]) -> tuple[lis
     """Check each `&&`/`;` segment against the shell cwd at that point; follow `cd` (it persists
     between Claude Code Bash calls). Returns the problems and the cwd after the command."""
     found: list[str] = []
+    code = bool(_INLINE_CODE.search(command))
     for seg in _SHELL_SEGMENTS.split(command):
-        found += _path_problems(seg, cwd, roots)
+        found += _path_problems(seg, cwd, roots, code=code)
         try:
             argv = shlex.split(seg)
         except ValueError:
