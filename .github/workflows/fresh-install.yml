@@ -1,0 +1,87 @@
+name: Fresh install
+
+# The Claude Code plugin on a machine with neither uv nor ffmpeg: the launcher must install uv into $HOME,
+# uv must fetch Python and vwatch, and vwatch must fetch a static ffmpeg, then real MCP tool calls must work.
+# Everything runs with a scrubbed environment (empty HOME, PATH=/usr/bin:/bin) so nothing preinstalled on the
+# runner can leak in.
+
+on:
+  push:
+    paths:
+      - ".github/workflows/fresh-install.yml"
+      - "plugins/vwatch/**"
+      - "scripts/smoke_mcp.py"
+      - "src/vwatch/media.py"
+      - "src/vwatch/mcp_server.py"
+      - "src/vwatch/mcp_tools.py"
+      - "pyproject.toml"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fresh-install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fresh:
+    name: fresh install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      FRESH_PATH: /usr/bin:/bin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scrubbed environment has no uv, ffmpeg or ffprobe
+        run: |
+          fresh_home="$RUNNER_TEMP/fresh-home"
+          mkdir -p "$fresh_home"
+          echo "FRESH_HOME=$fresh_home" >> "$GITHUB_ENV"
+          echo "VWATCH_SPEC=vwatch[mcp] @ file://$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          found=0
+          for tool in uv uvx ffmpeg ffprobe; do
+            if p=$(env -i PATH="$FRESH_PATH" sh -c "command -v $tool"); then
+              echo "::error::$tool is visible on $FRESH_PATH at $p"
+              found=1
+            fi
+          done
+          exit "$found"
+
+      - name: Launcher installs uv, Python and vwatch (plugin.json args + --version)
+        shell: bash
+        run: |
+          plugin=plugins/vwatch
+          args=()
+          while IFS= read -r a; do args+=("$a"); done < <(jq -r '.mcpServers.vwatch.args[1:][]' "$plugin/.claude-plugin/plugin.json")
+          echo "launcher args: ${args[*]}"
+          start=$(date +%s)
+          env -i HOME="$FRESH_HOME" PATH="$FRESH_PATH" VWATCH_SPEC="$VWATCH_SPEC" \
+            sh "$plugin/bin/vwatch-mcp" "${args[@]}" --version > "$RUNNER_TEMP/stdout.txt"
+          echo "first launch took $(( $(date +%s) - start )) s"
+          version=$(jq -r .version "$plugin/.claude-plugin/plugin.json")
+          echo "stdout: $(cat "$RUNNER_TEMP/stdout.txt")"
+          # stdout is the MCP protocol channel: the uv install must not have written anything to it
+          test "$(cat "$RUNNER_TEMP/stdout.txt")" = "$version"
+          test -x "$FRESH_HOME/.local/bin/uvx"
+
+      - name: MCP client calls video_info, video_overview and video_signals (static ffmpeg)
+        run: |
+          start=$(date +%s)
+          env -i HOME="$FRESH_HOME" PATH="$FRESH_PATH" VWATCH_SPEC="$VWATCH_SPEC" \
+            "$FRESH_HOME/.local/bin/uv" run -q --no-project --python ">=3.11,<3.13" --with "$VWATCH_SPEC" \
+            python scripts/smoke_mcp.py
+          echo "smoke run took $(( $(date +%s) - start )) s"
+
+      - name: What the first run put on disk
+        if: always()
+        run: |
+          du -sh "$FRESH_HOME/.local/bin" "$FRESH_HOME/.local/share/uv" "$FRESH_HOME/.cache/uv" \
+            "$FRESH_HOME/.cache/vwatch/ffmpeg" 2>/dev/null || true
+          ls -la "$FRESH_HOME"/.cache/vwatch/ffmpeg/*/ 2>/dev/null || true
