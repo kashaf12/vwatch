@@ -1,0 +1,79 @@
+#!/bin/sh
+# vwatch MCP launcher (macOS / Linux): find uv, installing it into your home if needed, then run
+#   uvx <args>
+# with the args from .claude-plugin/plugin.json (`--python ... --from "vwatch[mcp] @ git+...@vX.Y.Z" vwatch-mcp`;
+# the version pin lives there only). Python comes from uv, ffmpeg from vwatch's static fallback,
+# so nothing else needs to be installed.
+#
+#   VWATCH_SPEC=<requirement>   replace the --from requirement, e.g. 'vwatch[mcp] @ file:///path/to/vwatch'
+#   VWATCH_UV_INSTALL=0         never install uv; fail with instructions instead
+#
+# stdout belongs to the MCP protocol: everything this script (or the uv installer) says goes to stderr.
+set -eu
+
+say() { printf 'vwatch-mcp: %s\n' "$*" >&2; }
+
+find_uvx() {
+    if command -v uvx >/dev/null 2>&1; then
+        command -v uvx
+        return 0
+    fi
+    for dir in "${XDG_BIN_HOME:-}" "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+        if [ -n "$dir" ] && [ -x "$dir/uvx" ]; then
+            printf '%s\n' "$dir/uvx"
+            return 0
+        fi
+    done
+    return 1
+}
+
+install_uv() {
+    dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
+    url="https://astral.sh/uv/install.sh"
+    say "uv not found; installing it into $dir (one-time, no sudo) from $url"
+    if command -v curl >/dev/null 2>&1; then
+        script=$(curl -LsSf "$url") || { say "error: downloading $url failed"; return 1; }
+    elif command -v wget >/dev/null 2>&1; then
+        script=$(wget -qO- "$url") || { say "error: downloading $url failed"; return 1; }
+    else
+        say "error: need curl or wget to install uv"
+        return 1
+    fi
+    printf '%s\n' "$script" | UV_INSTALL_DIR="$dir" UV_NO_MODIFY_PATH=1 sh >&2
+}
+
+HOME="${HOME:?vwatch-mcp: HOME is not set}"
+
+if ! uvx=$(find_uvx); then
+    if [ "${VWATCH_UV_INSTALL:-1}" = "0" ] || ! install_uv || ! uvx=$(find_uvx); then
+        say "error: could not find or install uv. Install it yourself (https://docs.astral.sh/uv/getting-started/installation/), then restart Claude Code."
+        exit 127
+    fi
+fi
+
+if [ -n "${VWATCH_SPEC:-}" ]; then
+    # Rebuild "$@" with the value after --from replaced (or add --from if there is none).
+    n=$#
+    next_is_spec=0
+    replaced=0
+    for arg in "$@"; do
+        if [ "$next_is_spec" = 1 ]; then
+            arg=$VWATCH_SPEC
+            next_is_spec=0
+            replaced=1
+        elif [ "$arg" = "--from" ]; then
+            next_is_spec=1
+        fi
+        set -- "$@" "$arg"
+    done
+    shift "$n"
+    if [ "$replaced" = 0 ]; then
+        [ $# -gt 0 ] || set -- vwatch-mcp
+        set -- --from "$VWATCH_SPEC" "$@"
+    fi
+elif [ $# -eq 0 ]; then
+    say "usage: vwatch-mcp [uvx options] --from 'vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@vX.Y.Z' vwatch-mcp (or set VWATCH_SPEC)"
+    exit 2
+fi
+
+exec "$uvx" "$@"

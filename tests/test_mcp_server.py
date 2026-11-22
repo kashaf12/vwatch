@@ -359,6 +359,28 @@ class TestServer:
         with pytest.raises(ToolError, match="video_info failed: KeyError"):
             mcp_server._call("video_info", boom)
 
+    def test_missing_ffmpeg_is_a_tool_error_with_advice(self):
+        from mcp.server.mcpserver.exceptions import ToolError
+
+        from vwatch import mcp_server
+        from vwatch.media import FFmpegNotFoundError
+
+        def no_ffmpeg(**_):
+            raise FFmpegNotFoundError("ffmpeg/ffprobe not found. Install ffmpeg (macOS: `brew install ffmpeg`)")
+        with pytest.raises(ToolError, match=r"^ffmpeg/ffprobe not found\. Install ffmpeg"):
+            mcp_server._call("video_info", no_ffmpeg)
+
+    def test_prefetch_never_raises(self, monkeypatch):
+        from vwatch import mcp_server
+        from vwatch.media import FFmpegNotFoundError
+
+        def missing():
+            raise FFmpegNotFoundError("nothing here")
+        monkeypatch.setattr(mcp_server.media, "ffmpeg", missing)
+        thread = mcp_server._prefetch_ffmpeg()
+        thread.join(5)
+        assert not thread.is_alive() and thread.daemon
+
     def test_stdio_roundtrip(self, tmp_path):
         """Start the real server over stdio with the SDK client, list tools, call one with a bad path."""
         import anyio
@@ -420,3 +442,105 @@ class TestPlugin:
         assert "$ARGUMENTS" in cmd
         allowed = cmd.split("allowed-tools:")[1].split("\n")[0]
         assert all(f"mcp__plugin_vwatch_vwatch__{n}" in allowed for n in TOOL_NAMES)
+
+
+# ------------------------------------------------------------------ plugin launcher (plugins/vwatch/bin/vwatch-mcp)
+
+LAUNCHER = PLUGIN / "bin" / "vwatch-mcp"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the launcher is a POSIX sh script")
+class TestLauncher:
+    """The launcher only finds/installs uv and forwards plugin.json's args to uvx; a fake uvx records them."""
+
+    @staticmethod
+    def manifest_args() -> list[str]:
+        manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
+        return manifest["mcpServers"]["vwatch"]["args"]
+
+    @staticmethod
+    def fake_uvx(bindir: Path) -> Path:
+        bindir.mkdir(parents=True, exist_ok=True)
+        uvx = bindir / "uvx"
+        uvx.write_text('#!/bin/sh\nfor a in "$@"; do printf \'%s\\n\' "$a"; done > "$UVX_LOG"\n')
+        uvx.chmod(0o755)
+        return bindir
+
+    def run(self, tmp_path, args, *, path_dirs=(), **env):
+        import subprocess
+
+        log = tmp_path / "uvx-args.txt"
+        base = {"HOME": str(tmp_path / "home"), "PATH": os.pathsep.join([*map(str, path_dirs), "/usr/bin", "/bin"]),
+                "UVX_LOG": str(log)}
+        proc = subprocess.run(["sh", str(LAUNCHER), *args], env={**base, **env}, capture_output=True, text=True,
+                              timeout=30)
+        got = log.read_text().splitlines() if log.exists() else None
+        return proc, got
+
+    def test_plugin_json_runs_the_launcher_via_sh(self):
+        manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
+        server = manifest["mcpServers"]["vwatch"]
+        assert server["command"] == "sh"  # no reliance on the exec bit surviving the plugin cache copy
+        assert server["args"][0] == "${CLAUDE_PLUGIN_ROOT}/bin/vwatch-mcp"
+        assert LAUNCHER.is_file() and os.access(LAUNCHER, os.X_OK)
+
+    def test_version_lives_only_in_plugin_json(self):
+        """The launcher forwards plugin.json's pinned `--from` spec, so it carries no version that could drift."""
+        assert not re.search(r"@v\d+\.\d+", LAUNCHER.read_text())
+
+    def test_forwards_plugin_args_to_uvx_on_path(self, tmp_path):
+        args = self.manifest_args()[1:]
+        proc, got = self.run(tmp_path, args, path_dirs=[self.fake_uvx(tmp_path / "bin")])
+        assert proc.returncode == 0, proc.stderr
+        assert got == args and proc.stdout == ""
+
+    def test_finds_uvx_in_home_local_bin(self, tmp_path):
+        self.fake_uvx(tmp_path / "home" / ".local" / "bin")
+        proc, got = self.run(tmp_path, ["--from", "x", "vwatch-mcp"])
+        assert proc.returncode == 0, proc.stderr
+        assert got == ["--from", "x", "vwatch-mcp"]
+
+    def test_finds_uvx_in_cargo_bin(self, tmp_path):
+        self.fake_uvx(tmp_path / "home" / ".cargo" / "bin")
+        proc, got = self.run(tmp_path, ["--from", "x", "vwatch-mcp"])
+        assert proc.returncode == 0, proc.stderr
+        assert got == ["--from", "x", "vwatch-mcp"]
+
+    def test_vwatch_spec_overrides_the_pinned_spec(self, tmp_path):
+        spec = "vwatch[mcp] @ file:///src/vwatch"
+        proc, got = self.run(tmp_path, self.manifest_args()[1:], path_dirs=[self.fake_uvx(tmp_path / "bin")],
+                             VWATCH_SPEC=spec)
+        assert proc.returncode == 0, proc.stderr
+        expected = self.manifest_args()[1:]
+        expected[expected.index("--from") + 1] = spec
+        assert got == expected and "--python" in got  # only the spec changes; uvx options stay
+
+    def test_vwatch_spec_without_from_is_added(self, tmp_path):
+        proc, got = self.run(tmp_path, ["--python", "3.12", "vwatch-mcp", "--version"],
+                             path_dirs=[self.fake_uvx(tmp_path / "bin")], VWATCH_SPEC="vwatch[mcp] @ file:///x y")
+        assert proc.returncode == 0, proc.stderr
+        assert got == ["--from", "vwatch[mcp] @ file:///x y", "--python", "3.12", "vwatch-mcp", "--version"]
+
+    def test_plugin_pins_a_python_with_wheels_for_every_dependency(self):
+        """uv would otherwise pick the newest CPython, which onnxruntime (faster-whisper) may not have wheels for."""
+        args = self.manifest_args()
+        python = args[args.index("--python") + 1]
+        assert python == ">=3.11,<3.13"
+
+    def test_vwatch_spec_without_args(self, tmp_path):
+        proc, got = self.run(tmp_path, [], path_dirs=[self.fake_uvx(tmp_path / "bin")], VWATCH_SPEC="vwatch[mcp]")
+        assert proc.returncode == 0, proc.stderr
+        assert got == ["--from", "vwatch[mcp]", "vwatch-mcp"]
+
+    def test_no_args_and_no_spec_is_a_usage_error(self, tmp_path):
+        proc, got = self.run(tmp_path, [], path_dirs=[self.fake_uvx(tmp_path / "bin")])
+        assert proc.returncode == 2 and "usage" in proc.stderr and got is None and proc.stdout == ""
+
+    def test_no_uv_and_install_disabled_fails_cleanly(self, tmp_path):
+        import shutil
+
+        if shutil.which("uvx", path="/usr/bin:/bin"):
+            pytest.skip("uvx is installed system-wide here")
+        proc, got = self.run(tmp_path, ["--from", "x", "vwatch-mcp"], VWATCH_UV_INSTALL="0")
+        assert proc.returncode == 127 and got is None
+        assert proc.stdout == "" and "could not find or install uv" in proc.stderr

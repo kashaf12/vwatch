@@ -99,7 +99,7 @@ def cut_segment(raw: Path, out: Path, start: float, duration: float) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     n = frames_for(duration)
     tmp = out.with_suffix(".tmp.mp4")
-    cmd = [media.FFMPEG, "-v", "error", "-y", "-ss", f"{start:.3f}", "-i", str(raw), "-t", f"{n / FPS:.4f}",
+    cmd = [media.ffmpeg(), "-v", "error", "-y", "-ss", f"{start:.3f}", "-i", str(raw), "-t", f"{n / FPS:.4f}",
            "-vf", f"scale={WIDTH}:-2:flags=area,setsar=1,fps={FPS}", "-frames:v", str(n),
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-ar", str(SR), "-ac", "1", "-b:a", "128k", str(tmp)]

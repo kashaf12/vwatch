@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
 from collections.abc import Callable
 from typing import Annotated, Any
 
 from pydantic import Field
 
 from vwatch import __version__, mcp_tools
-from vwatch.media import MediaError
+from vwatch import media
+from vwatch.media import FFmpegNotFoundError, MediaError
 
 log = logging.getLogger("vwatch.mcp")
 
@@ -76,8 +78,10 @@ def _call(name: str, fn: Callable[..., list[dict]], **kwargs: Any) -> list[Any]:
         raise ToolError(str(exc)) from exc
     except MediaError as exc:
         raise ToolError(f"ffmpeg could not read the video: {str(exc)[-400:]}") from exc
-    except FileNotFoundError as exc:  # ffmpeg/ffprobe missing, or the file vanished mid-call
-        raise ToolError(f"{exc}. vwatch needs ffmpeg and ffprobe on PATH.") from exc
+    except FFmpegNotFoundError as exc:  # no ffmpeg/ffprobe anywhere; the message says how to fix it
+        raise ToolError(str(exc)) from exc
+    except FileNotFoundError as exc:  # a configured binary or the file vanished mid-call
+        raise ToolError(f"{exc}. vwatch needs ffmpeg and ffprobe (on PATH, or via VWATCH_FFMPEG/VWATCH_FFPROBE).") from exc
     except Exception as exc:
         log.exception("%s failed", name)
         raise ToolError(f"{name} failed: {type(exc).__name__}: {exc}") from exc
@@ -154,6 +158,22 @@ def build_server():
     return server
 
 
+def _prefetch_ffmpeg() -> threading.Thread:
+    """Resolve ffmpeg/ffprobe in the background so a first-run static download overlaps the agent's setup
+    instead of stalling its first tool call. Failures are only logged: the tool call reports them properly."""
+
+    def work() -> None:
+        try:
+            media.ffmpeg()
+            media.ffprobe()
+        except Exception as exc:  # noqa: BLE001 - surfaced again, with advice, by the first tool call
+            log.warning("ffmpeg not available yet: %s", exc)
+
+    thread = threading.Thread(target=work, name="vwatch-ffmpeg-prefetch", daemon=True)
+    thread.start()
+    return thread
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] in ("-h", "--help"):
@@ -167,6 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     except ImportError as exc:
         print(f"error: the MCP server needs the 'mcp' extra: pip install 'vwatch[mcp]' ({exc})", file=sys.stderr)
         return 1
+    _prefetch_ffmpeg()
     server.run("stdio")
     return 0
 

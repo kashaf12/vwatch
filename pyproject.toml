@@ -38,7 +38,8 @@ Changelog = "https://github.com/kashaf12/vwatch/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 api = ["anthropic>=0.70"]
-mcp = ["mcp>=2.3,<3"]  # MCP server: `vwatch-mcp` / `vw mcp`
+# MCP server (`vwatch-mcp` / `vw mcp`); static-ffmpeg fetches ffmpeg+ffprobe on first use when none is on PATH
+mcp = ["mcp>=2.3,<3", "static-ffmpeg>=3.0,<4"]
 
 [project.scripts]
 vw = "vwatch.cli:main"

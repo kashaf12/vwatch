@@ -6,21 +6,118 @@ Audio is float32 mono in [-1, 1].
 
 from __future__ import annotations
 
+import contextlib
+import functools
 import json
+import os
+import shutil
 import subprocess
+import sys
+import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-
-FFMPEG = "ffmpeg"
-FFPROBE = "ffprobe"
 
 
 class MediaError(RuntimeError):
     """ffmpeg/ffprobe failed. The message carries ffmpeg's stderr tail."""
+
+
+class FFmpegNotFoundError(FileNotFoundError):
+    """No usable ffmpeg/ffprobe: not configured, not on PATH, and no static build could be fetched."""
+
+
+# ------------------------------------------------------------------ binary resolution
+#
+# ffmpeg and ffprobe are resolved once per process, in this order:
+#   1. $VWATCH_FFMPEG / $VWATCH_FFPROBE (a path, or a name looked up on PATH)
+#   2. `ffmpeg` / `ffprobe` on PATH (the system install; returned as the bare name, as before)
+#   3. a static build from the optional `static-ffmpeg` package (in the `mcp` extra), downloaded once
+#      to $VWATCH_CACHE/ffmpeg/<platform> (default ~/.cache/vwatch/ffmpeg/<platform>)
+# `media.FFMPEG` / `media.FFPROBE` still work: they resolve lazily through the same functions.
+
+_ENV_VARS = {"ffmpeg": "VWATCH_FFMPEG", "ffprobe": "VWATCH_FFPROBE"}
+_fetch_lock = threading.Lock()
+
+
+def _cache_root() -> Path:
+    return Path(os.environ.get("VWATCH_CACHE", Path.home() / ".cache" / "vwatch"))
+
+
+@functools.cache
+def _static_binaries() -> tuple[str, str]:
+    """(ffmpeg, ffprobe) from `static-ffmpeg`, downloading them on first use. Raises FFmpegNotFoundError."""
+    try:
+        from static_ffmpeg import run
+    except ImportError as exc:
+        raise FFmpegNotFoundError(
+            "ffmpeg/ffprobe not found. Install ffmpeg (macOS: `brew install ffmpeg`, Debian/Ubuntu: `sudo apt "
+            "install ffmpeg`, Windows: `winget install ffmpeg`), set VWATCH_FFMPEG/VWATCH_FFPROBE to the "
+            "binaries, or install the `static-ffmpeg` package (`pip install 'vwatch[mcp]'`) to fetch a static "
+            "build automatically.") from exc
+    dest = _cache_root() / "ffmpeg" / run.get_platform_key()
+    with _fetch_lock:
+        if not (dest / "installed.crumb").exists():
+            print(f"vwatch: no ffmpeg on PATH; downloading a static ffmpeg build to {dest} (one time)...",
+                  file=sys.stderr, flush=True)
+        try:
+            # static-ffmpeg prints progress to stdout; an MCP stdio server must keep stdout for the protocol.
+            with contextlib.redirect_stdout(sys.stderr):
+                ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise(download_dir=str(dest))
+        except Exception as exc:
+            raise FFmpegNotFoundError(
+                f"ffmpeg/ffprobe not found on PATH and the static ffmpeg download into {dest} failed "
+                f"({type(exc).__name__}: {exc}). Install ffmpeg yourself (macOS: `brew install ffmpeg`, "
+                "Debian/Ubuntu: `sudo apt install ffmpeg`, Windows: `winget install ffmpeg`) or set "
+                "VWATCH_FFMPEG/VWATCH_FFPROBE.") from exc
+    for exe in (ffmpeg_exe, ffprobe_exe):
+        if not os.access(exe, os.X_OK):
+            raise FFmpegNotFoundError(f"static ffmpeg build is incomplete: {exe} is missing or not executable; "
+                                      f"delete {dest} to re-download it")
+    return ffmpeg_exe, ffprobe_exe
+
+
+@functools.cache
+def _resolve(name: str) -> str:
+    var = _ENV_VARS[name]
+    configured = os.environ.get(var, "").strip()
+    if configured:
+        found = shutil.which(configured)
+        if found is None:
+            raise FFmpegNotFoundError(f"{var}={configured!r} is not an executable file")
+        return found
+    if shutil.which(name) is not None:
+        return name
+    ffmpeg_exe, ffprobe_exe = _static_binaries()
+    return ffmpeg_exe if name == "ffmpeg" else ffprobe_exe
+
+
+def ffmpeg() -> str:
+    """The ffmpeg executable to run (resolved once, then cached). Raises FFmpegNotFoundError."""
+    return _resolve("ffmpeg")
+
+
+def ffprobe() -> str:
+    """The ffprobe executable to run (resolved once, then cached). Raises FFmpegNotFoundError."""
+    return _resolve("ffprobe")
+
+
+def reset_binaries() -> None:
+    """Forget resolved binaries (after changing PATH or VWATCH_FFMPEG/VWATCH_FFPROBE)."""
+    _resolve.cache_clear()
+    _static_binaries.cache_clear()
+
+
+def __getattr__(name: str) -> Any:  # PEP 562: keep `media.FFMPEG` / `media.FFPROBE` working, resolved lazily
+    if name == "FFMPEG":
+        return ffmpeg()
+    if name == "FFPROBE":
+        return ffprobe()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @dataclass(frozen=True)
@@ -40,17 +137,23 @@ class VideoInfo:
         return max(0, min(self.nb_frames - 1, int(round(t * self.fps))))
 
 
+def _name(exe: str) -> str:
+    """'ffmpeg' for '/some/cache/ffmpeg' (error messages stay short whichever binary ran)."""
+    base = os.path.basename(exe)
+    return base[:-4] if base.lower().endswith(".exe") else base
+
+
 def _run(cmd: Sequence[str], *, input_bytes: bytes | None = None) -> bytes:
     proc = subprocess.run(list(cmd), input=input_bytes, capture_output=True)
     if proc.returncode != 0:
         tail = proc.stderr.decode("utf-8", "replace")[-800:]
-        raise MediaError(f"{cmd[0]} failed ({proc.returncode}): {tail}")
+        raise MediaError(f"{_name(cmd[0])} failed ({proc.returncode}): {tail}")
     return proc.stdout
 
 
 def probe(path: str | Path) -> VideoInfo:
     out = _run(
-        [FFPROBE, "-v", "error", "-show_entries",
+        [ffprobe(), "-v", "error", "-show_entries",
          "format=duration:stream=codec_type,width,height,r_frame_rate,nb_frames",
          "-of", "json", str(path)]
     )
@@ -84,7 +187,7 @@ def decode_all(path: str | Path, width: int, *, gray: bool = False) -> tuple[np.
     info = probe(path)
     w, h = _scaled_size(info, width)
     pix = "gray" if gray else "rgb24"
-    raw = _run([FFMPEG, "-v", "error", "-i", str(path), "-vf", f"scale={w}:{h}:flags=area",
+    raw = _run([ffmpeg(), "-v", "error", "-i", str(path), "-vf", f"scale={w}:{h}:flags=area",
                 "-f", "rawvideo", "-pix_fmt", pix, "-"])
     ch = 1 if gray else 3
     n = len(raw) // (w * h * ch)
@@ -113,7 +216,7 @@ def frames_by_index(path: str | Path, indices: Iterable[int], width: int) -> dic
 
 def _select_frames(path: str | Path, wanted: list[int], w: int, h: int) -> dict[int, np.ndarray]:
     expr = "+".join(f"eq(n\\,{i})" for i in wanted)
-    raw = _run([FFMPEG, "-v", "error", "-i", str(path),
+    raw = _run([ffmpeg(), "-v", "error", "-i", str(path),
                 "-vf", f"select='{expr}',scale={w}:{h}:flags=area",
                 "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
     size = w * h * 3
@@ -126,7 +229,7 @@ def _stream_frames(path: str | Path, wanted: list[int], w: int, h: int) -> dict[
     """Decode sequentially up to the last wanted frame, keeping only the wanted ones (bounded memory)."""
     size = w * h * 3
     keep = set(wanted)
-    proc = subprocess.Popen([FFMPEG, "-v", "error", "-i", str(path), "-vf", f"scale={w}:{h}:flags=area",
+    proc = subprocess.Popen([ffmpeg(), "-v", "error", "-i", str(path), "-vf", f"scale={w}:{h}:flags=area",
                              "-frames:v", str(wanted[-1] + 1), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out: dict[int, np.ndarray] = {}
@@ -141,7 +244,7 @@ def _stream_frames(path: str | Path, wanted: list[int], w: int, h: int) -> dict[
         n += 1
     err = proc.stderr.read().decode("utf-8", "replace")
     if proc.wait() != 0:
-        raise MediaError(f"{FFMPEG} failed ({proc.returncode}): {err[-800:]}")
+        raise MediaError(f"ffmpeg failed ({proc.returncode}): {err[-800:]}")
     return out
 
 
@@ -158,7 +261,7 @@ def extract_audio(path: str | Path, sr: int = 16000) -> np.ndarray:
     info = probe(path)
     if not info.has_audio:
         return np.zeros(0, dtype=np.float32)
-    raw = _run([FFMPEG, "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sr),
+    raw = _run([ffmpeg(), "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sr),
                 "-f", "f32le", "-"])
     return np.frombuffer(raw, dtype=np.float32).copy()
 
@@ -176,7 +279,7 @@ def write_video(
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     n, h, w, _ = frames.shape
-    cmd = [FFMPEG, "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+    cmd = [ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
            "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-"]
     tmp_wav: Path | None = None
     if audio is not None and audio.size:

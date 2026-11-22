@@ -11,12 +11,12 @@
   "license": "MIT",
   "keywords": ["video", "mcp", "multimodal", "ffmpeg", "whisper", "qa", "perception"],
   "network": {
-    "hosts": ["github.com", "pypi.org", "files.pythonhosted.org", "huggingface.co"]
+    "hosts": ["astral.sh", "releases.astral.sh", "github.com", "objects.githubusercontent.com", "media.githubusercontent.com", "pypi.org", "files.pythonhosted.org", "huggingface.co"]
   },
   "mcpServers": {
     "vwatch": {
-      "command": "uvx",
-      "args": ["--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
+      "command": "sh",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/vwatch-mcp", "--python", ">=3.11,<3.13", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0", "vwatch-mcp"]
     }
   }
 }
