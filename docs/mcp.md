@@ -29,8 +29,8 @@ One-time first-run download, measured from an empty `HOME` with no uv, Python 3.
 
 | Platform | uv | Python | vwatch + deps | static ffmpeg + ffprobe | Total | Time |
 |---|---|---|---|---|---|---|
-| macOS arm64 | 15 MB | 25 MB | 86 MB | 42 MB | ~170 MB | ~35 s (21 s to a running server, then ffmpeg in the background) |
-| Linux x86_64 | 17 MB | ~30 MB | ~110 MB | 142 MB | ~300 MB | see the `Fresh install` CI job |
+| macOS arm64 | 15 MB | 25 MB | 86 MB | 42 MB | ~170 MB | ~35 s on a home connection (21 s to a running server, then ffmpeg in the background); ~10 s on a GitHub runner |
+| Linux x86_64 | 17 MB | 35 MB | ~155 MB | 142 MB | ~350 MB | ~11 s on a GitHub runner; budget ~1 min on 50 Mbit/s |
 
 The first tool call after a fresh install takes ~15 s more on macOS (one-time Python bytecode compilation and
 the OS's first-run check of the new native binaries). Later starts take about a second. The first start can be slower than Claude Code's MCP startup timeout on a

@@ -22,7 +22,7 @@ The tools make no model calls and need no API key; the only cost is your agent's
 
 **Requirements**: none on macOS/Linux. On first start the launcher (`bin/vwatch-mcp`) installs
 [uv](https://docs.astral.sh/uv/) into `~/.local/bin` if it is missing, uv fetches Python and vwatch, and
-vwatch fetches a static ffmpeg/ffprobe if none is on `PATH` (one-time, ~170 MB on macOS, ~300 MB on Linux).
+vwatch fetches a static ffmpeg/ffprobe if none is on `PATH` (one-time, ~170 MB on macOS, ~350 MB on Linux).
 A system ffmpeg, or `VWATCH_FFMPEG`/`VWATCH_FFPROBE`, is used when present. The first `video_transcript`
 call downloads a local whisper model. Windows: see docs/mcp.md (install uv with `winget install astral-sh.uv`).
 

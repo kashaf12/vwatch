@@ -23,7 +23,7 @@
 ```
 
 You get seven video tools (frame grids, dense seek, crop, transcript, loudness, signal hints) and a `watch-video` skill. No model calls, no API key.
-**Nothing to install on macOS or Linux:** on first start the plugin fetches [uv](https://docs.astral.sh/uv/) (into `~/.local/bin`, no sudo), Python and vwatch, and a static ffmpeg/ffprobe if you have none (into `~/.cache/vwatch/ffmpeg`). One-time download: about 170 MB / 35 s on Apple Silicon, about 300 MB on Linux x86_64 (the Linux ffmpeg build alone is 142 MB). A system ffmpeg on `PATH` is used instead when present. The first `video_transcript` also downloads a whisper model (~480 MB for the default `small`). Windows: install uv first (`winget install astral-sh.uv`), see [docs/mcp.md](docs/mcp.md#windows).
+**Nothing to install on macOS or Linux:** on first start the plugin fetches [uv](https://docs.astral.sh/uv/) (into `~/.local/bin`, no sudo), Python and vwatch, and a static ffmpeg/ffprobe if you have none (into `~/.cache/vwatch/ffmpeg`). One-time download: about 170 MB / 35 s on Apple Silicon, about 350 MB on Linux x86_64 (the Linux ffmpeg build alone is 142 MB). A system ffmpeg on `PATH` is used instead when present. The first `video_transcript` also downloads a whisper model (~480 MB for the default `small`). Windows: install uv first (`winget install astral-sh.uv`), see [docs/mcp.md](docs/mcp.md#windows).
 Other MCP clients: `claude mcp add vwatch -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.0" vwatch-mcp`, or see [docs/mcp.md](docs/mcp.md) for Cursor and Claude Desktop. More in [Use it in your agent](#use-it-in-your-agent).
 
 ## Why
