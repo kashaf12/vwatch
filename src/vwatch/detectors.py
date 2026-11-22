@@ -34,6 +34,7 @@ SETTLE = 3  # frames the encoder needs to settle on a held picture
 MOTION_MIN = 0.15  # median frame diff around a hold that counts as "the scene was moving"
 CATCH_UP = 4.0  # resume jump vs the surrounding motion that marks a catch-up after a hold
 SOUND_MIN = 0.3  # share of the hold with sound on
+SILENT_CLIP_SHARE = 0.1  # below this share of sound over the whole clip, the clip counts as silent
 
 # jump cut
 JUMP_SPIKE = 2.2  # frame diff vs its +-10 frame median
@@ -109,6 +110,48 @@ def speech_mask(rms_db: np.ndarray, speech_db: float, silence_db: float) -> np.n
     return rms_db > thr
 
 
+CADENCE_SHARE = 0.15  # share of moving-duplicate-moving frame triples that marks a repeated-frame cadence
+
+
+def has_dup_cadence(diff: np.ndarray, still: float, moving: float) -> bool:
+    """True for low-frame-rate sources stretched to a higher rate (every Nth frame an exact repeat)."""
+    if diff.size < 4:
+        return False
+    d = diff[1:]
+    triples = (d[1:-1] < still) & (d[:-2] > moving) & (d[2:] > moving)
+    return float(triples.mean()) > CADENCE_SHARE
+
+
+def plain_motion(diff: np.ndarray) -> float:
+    return float(np.median(diff)) if diff.size else 0.0
+
+
+def cadence_motion(diff: np.ndarray, window: int = 3) -> float:
+    """Typical motion level, robust to repeated frames (15 fps stretched to 30 fps, 3:2 pulldown).
+
+    Duplicate-frame cadences put zeros between real motion, which drags a plain median to ~0 and makes
+    a moving scene look still; taking the max over a small sliding window first removes that.
+    """
+    if diff.size == 0:
+        return 0.0
+    if diff.size < window:
+        return float(diff.max())
+    peaks = np.lib.stride_tricks.sliding_window_view(diff, window).max(axis=1)
+    return float(np.median(peaks))
+
+
+SAME_SHOT_CORR = 0.9  # brightness-histogram correlation above which two frames are the same shot
+
+
+def same_shot(f1: np.ndarray, f2: np.ndarray, bins: int = 32) -> bool:
+    """True when two small gray frames look like the same shot (a catch-up, not a scene cut)."""
+    h1 = np.histogram(f1, bins=bins, range=(0, 255))[0].astype(np.float64)
+    h2 = np.histogram(f2, bins=bins, range=(0, 255))[0].astype(np.float64)
+    if h1.std() == 0 or h2.std() == 0:
+        return bool(np.array_equal(h1, h2))
+    return float(np.corrcoef(h1, h2)[0, 1]) >= SAME_SHOT_CORR
+
+
 def _share(mask: np.ndarray, hop_s: float, t0: float, t1: float) -> float:
     a, b = max(0, int(t0 / hop_s)), min(len(mask), int(np.ceil(t1 / hop_s)))
     return float(mask[a:b].mean()) if b > a else 0.0
@@ -135,6 +178,11 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
     still = diff < STILL_DIFF
     still[0] = False
     sound = speech_mask(track.rms_db, SPEECH_DB, SILENCE_DB)
+    # A silent clip (music-less montage, no audio track) can't use "sound goes on" as context, so the
+    # sound rule is dropped there and only the strongest evidence counts: a catch-up jump.
+    silent_clip = sound.size == 0 or float(sound.mean()) < SILENT_CLIP_SHARE
+    # Repeated-frame sources need a motion estimate that ignores the duplicates; others keep the median.
+    motion = cadence_motion if has_dup_cadence(diff, STILL_DIFF, MOTION_MIN) else plain_motion
     cut_thr = _spike_threshold(diff)
     out: list[Candidate] = []
     for a, b in _runs(still):
@@ -146,18 +194,27 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
             if float(np.mean(core < HOLD_CELL)) < HOLD_SHARE:
                 continue  # something still moves at mid resolution
         t0, t1 = a / track.fps, b / track.fps
-        if _share(sound, HOP_S, t0, t1) < SOUND_MIN:
+        if not silent_clip and _share(sound, HOP_S, t0, t1) < SOUND_MIN:
             continue
         pre, post = diff[max(1, a - 15):a], diff[b + 1:b + 16]
-        m_pre = float(np.median(pre)) if pre.size else 0.0
-        m_post = float(np.median(post)) if post.size else 0.0
+        m_pre = motion(pre)
+        m_post = motion(post)
         if max(m_pre, m_post) < MOTION_MIN:
             continue  # nothing moves around it either: a still shot or slide
         resume = float(diff[b]) if b < n else 0.0
         base = max(0.05, m_post, 0.5 * m_pre)
-        held = f"picture held still for {dur:.2f}s while sound continues"
-        if resume >= cut_thr:
-            if m_pre < MOTION_MIN:
+        held = (f"picture held still for {dur:.2f}s in a clip without sound" if silent_clip
+                else f"picture held still for {dur:.2f}s while sound continues")
+        after = min(n - 1, b + 1)
+        same = track.frames is not None and len(track.frames) == n and same_shot(track.frames[a], track.frames[after])
+        if silent_clip and resume >= cut_thr and same and m_pre >= MOTION_MIN:
+            # Silent clip: a cut-sized jump that stays in the same shot is the picture catching up after
+            # a freeze. (With sound the existing rules apply unchanged; widening them there added false
+            # alarms on the dev set.)
+            out.append(Candidate(t0, t1, "freeze", 0.9, held + f", then jumps ahead {resume / base:.0f}x the "
+                                                              "normal motion within the same shot (catch-up)"))
+        elif resume >= cut_thr:
+            if m_pre < MOTION_MIN or silent_clip:  # silent: an editor's hold before a cut is too likely
                 continue  # the held shot itself never moved: a still shot, then a cut
             out.append(Candidate(t0, t1, "freeze", 0.55, held + ", then a scene cut (held frame before an edit?)"))
         elif resume >= CATCH_UP * base and m_post >= 0.05:
