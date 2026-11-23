@@ -120,7 +120,8 @@ def detect_flashes(track: SignalTrack, max_len: int = 4) -> list[Candidate]:
                 if track.diff[j] >= thr * 0.5 and back < thr * 0.5:
                     t0, t1 = i / track.fps, j / track.fps
                     out.append(Candidate(t0, t1, "flash", min(1.0, 0.7 + 0.3 * (k <= 3)),
-                                         f"{k} frame(s) differ from both neighbours"))
+                                         f"{k} frame(s) differ from both neighbours and the picture then returns to "
+                                         "where it was: a spliced-in frame, even if it shows the same scene"))
                     i = j
                     break
         i += 1
@@ -177,20 +178,41 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
     return out
 
 
+ZERO_DB = -100.0  # at or below this = exact digital zero (no room tone at all)
+ROOM_TONE_ZERO_SHARE = 0.02  # a clip whose other audio is exact zero less often than this keeps room tone
+
+
 def detect_silences(track: SignalTrack, min_s: float = 0.3) -> list[Candidate]:
-    """Near-silence with sound on both sides."""
-    silent = track.rms_db < SILENCE_DB
+    """Near-silence with sound on both sides.
+
+    In a live recording, natural pauses keep room tone (about -60 to -90 dB); sound cut to exact
+    digital zero mid-speech is the dropout signature, so that case scores 0.9. Synthetic or heavily
+    edited audio has exact-zero gaps between sentences too; there the note says so and the score stays.
+    """
+    db = track.rms_db
+    silent = db < SILENCE_DB
+    zero = db <= ZERO_DB
     out = []
     hops_ctx = int(0.4 / HOP_S)
     for a, b in _runs(silent):
         dur = (b - a) * HOP_S
         if dur < min_s:
             continue
-        before = track.rms_db[max(0, a - hops_ctx):a]
-        after = track.rms_db[b:b + hops_ctx]
-        if before.size and after.size and before.max() > SPEECH_DB and after.max() > SPEECH_DB:
-            out.append(Candidate(a * HOP_S, b * HOP_S, "silence_in_speech", min(0.9, 0.4 + dur / 2),
-                                 f"{dur:.2f}s of silence between sounds"))
+        before = db[max(0, a - hops_ctx):a]
+        after = db[b:b + hops_ctx]
+        if not (before.size and after.size and before.max() > SPEECH_DB and after.max() > SPEECH_DB):
+            continue
+        score, note = min(0.9, 0.4 + dur / 2), f"{dur:.2f}s of silence between sounds"
+        if float(np.median(db[a:b])) <= ZERO_DB:
+            other_zero = (int(zero.sum()) - int(zero[a:b].sum())) / max(1, len(db) - (b - a))
+            if other_zero < ROOM_TONE_ZERO_SHARE:
+                score = 0.9
+                note += ("; the sound drops to exact digital silence while the rest of the clip keeps "
+                         "room tone (dropout signature)")
+            else:
+                note += ("; exact digital silence, but every pause in this clip is (synthetic or edited "
+                         "audio): check its edges for a cut-off word")
+        out.append(Candidate(a * HOP_S, b * HOP_S, "silence_in_speech", score, note))
     return out
 
 

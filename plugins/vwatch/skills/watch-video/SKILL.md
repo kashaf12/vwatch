@@ -23,10 +23,10 @@ signal kinds matter.
 
 | Looking for | Signal kinds | Confirm with |
 |---|---|---|
-| flash frame / glitch frame | `flash` | `video_seek` at 30 fps over <= 0.5 s |
+| flash frame / glitch frame | `flash` | `video_seek` at 30 fps over <= 0.5 s: if the frames either side match each other and the flagged one does not, it is a flash, even when it shows the same person or place from another moment |
 | frozen picture | `freeze` | `video_seek` across the span: identical frames while audio continues |
 | jump cut / bad edit | `jump_cut`, `cut_in_speech`, `cut` | `video_seek` +-0.5 s, plus `video_listen` (a cut mid-word) |
-| audio dropout / mute | `silence_in_speech` | `video_listen`: a run of `sil` while words continue around it |
+| audio dropout / mute | `silence_in_speech` | `video_listen`: a run of `sil` while words continue around it. When the hint says the sound drops to exact digital silence while the clip keeps room tone, it is a dropout even if it falls between sentences |
 | overlay, caption, UI change | `local_change` | `video_crop` on that region |
 | what is said | - | `video_transcript` (add `words: true` for exact word times) |
 | what happens / when | all | `video_overview`, then `video_seek` |
@@ -54,6 +54,8 @@ the expectation, any signal hint relevant to the question, and any moment the qu
 - `video_listen(t0, t1)`: loudness every 0.1 s and the words heard, for audio events.
 - Confirm or reject each hint by looking or listening. Drop hints that turn out to be ordinary edits
   (a clean scene change between shots, a natural pause between sentences) unless the question asks for them.
+  Hints scored 0.9 or more are rarely wrong: reject one only with direct evidence against it (frames or
+  levels you looked at), never because the moment "looks natural" in a skim.
 
 ## 5. Budget
 
