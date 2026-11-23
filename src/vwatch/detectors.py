@@ -218,6 +218,8 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
         base = max(0.05, m_post, 0.5 * m_pre)
         held = (f"picture held still for {dur:.2f}s in a clip without sound" if silent_clip
                 else f"picture held still for {dur:.2f}s while sound continues")
+        if track.cell_max is not None and len(track.cell_max) == n:
+            held += " (frames identical at mid resolution: an exact repeat, not a dissolve or slow move)"
         after = min(n - 1, b + 1)
         same = track.frames is not None and len(track.frames) == n and same_shot(track.frames[a], track.frames[after])
         if silent_clip and resume >= cut_thr and same and m_pre >= MOTION_MIN:

@@ -24,7 +24,7 @@ signal kinds matter.
 | Looking for | Signal kinds | Confirm with |
 |---|---|---|
 | flash frame / glitch frame | `flash` | `video_seek` at 30 fps over <= 0.5 s: if the frames either side match each other and the flagged one does not, it is a flash, even when it shows the same person or place from another moment |
-| frozen picture | `freeze` | `video_seek` across the span: identical frames while audio continues |
+| frozen picture | `freeze` | `video_seek` across the span: identical frames while audio continues. The hint is only raised when the frames are identical at mid resolution, so a dissolve or slow camera move cannot explain it; if your frames seem to change, check you are seeking inside the hinted span |
 | jump cut / bad edit | `jump_cut`, `cut_in_speech`, `cut` | `video_seek` +-0.5 s, plus `video_listen` (a cut mid-word) |
 | audio dropout / mute | `silence_in_speech` | `video_listen`: a run of `sil` while words continue around it. When the hint says the sound drops to exact digital silence while the clip keeps room tone, it is a dropout even if it falls between sentences |
 | overlay, caption, UI change | `local_change` | `video_crop` on that region |
