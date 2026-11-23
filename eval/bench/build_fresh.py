@@ -171,8 +171,8 @@ def render_long(raw: Path, out: Path, card: Path, t_card: float, kind: str, t_de
     span = (t_def, t_def)
     if kind == "freeze":
         hold = 1.2
-        vf += (f";[v1]trim=0:{t_def},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={hold}[p];"
-               f"[v1]trim={t_def + hold},setpts=PTS-STARTPTS[q];[p][q]concat=n=2:v=1[v]")
+        vf += (f";[v1]split[s1][s2];[s1]trim=0:{t_def},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={hold}[p];"
+               f"[s2]trim={t_def + hold},setpts=PTS-STARTPTS[q];[p][q]concat=n=2:v=1[v]")
         span = (t_def, t_def + hold)
     elif kind == "flash":
         n0 = int(round(t_def * 30))
