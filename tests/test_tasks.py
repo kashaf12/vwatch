@@ -105,3 +105,16 @@ class TestParseReport:
 
         parsed, _ = tasks.parse_report(Task.DEFECTS, '{"defects": [{"type": "jump_cut", "start": 1}]}')
         json.dumps(parsed)
+
+
+class TestFreshPrompt:
+    def test_fresh_items_get_the_generic_prompt(self):
+        from vwatch.schemas import DefectTruth
+        t = DefectTruth(video_id="fxs_abc_clean", source="abc", duration=50.0)
+        p = tasks.task_prompt(Task.DEFECTS, t)
+        assert "Hindi" not in p and "caption_blocked" not in p and "jump_cut" in p and "audio_dropout" in p
+
+    def test_old_items_keep_their_prompt(self):
+        from vwatch.schemas import DefectTruth
+        t = DefectTruth(video_id="t1x_sem_clean_0", source="sem", duration=50.0)
+        assert tasks.task_prompt(Task.DEFECTS, t) == tasks.task_prompt(Task.DEFECTS)
