@@ -146,7 +146,7 @@ Plugin launcher variables (`VWATCH_UV_INSTALL`, `VWATCH_SPEC`) are described in 
 | `docs/` | [Benchmark](benchmark.md), [eval protocol](eval-protocol.md), [dataset spec](dataset-spec.md), [data and licenses](DATA.md), [MCP reference](mcp.md), [CLI](cli.md), [roadmap](roadmap.md) |
 | `scripts/setup_external.sh` | Pinned install of the third-party tools for the external arms |
 | `scripts/smoke_mcp.py` | Fresh-install smoke test: starts the plugin's server and calls the tools over MCP |
-| `tests/` | ~690 tests; fakes only, no network or model calls |
+| `tests/` | ~740 tests; fakes only, no network or model calls |
 
 ## Citing
 

@@ -98,6 +98,8 @@ Same model (`claude-opus-5-5`) and the same prompts for every arm, on 40 openly 
 - **No measurable accuracy difference from the best tools, at half the cost and twice the speed.** All F1 gaps between the Claude Code arms are within noise (plugin minus claude-video-vision: −0.8 pp, 95% CI [−10.0, +8.4], bootstrapped over source clips). The plugin finds the most defects (recall 0.83 vs 0.80 and 0.76) but raises more wrong reports than claude-video-vision (precision 0.87 vs 1.00). One caveat: the wording of its hints and skill was revised after reading its failures on these same videos, so its numbers are somewhat optimistic until a fresh test set is run.
 - **Frames alone miss short glitches.** Uniform frames found 1 of 7 flash frames and 0 of 8 audio dropouts; the plugin found all of both in every run.
 - **Not cheaper on very short clips.** On TVBench's 5–30 s clips the skill's fixed setup dominates: $0.48 per video-minute against $0.21 for plain Claude Code.
+- **Long videos work.** On a 21-minute lecture with a 2 s on-screen code word and a 1 s freeze spliced in, the plugin found both in 138–159 s (plain Claude Code: 207 s). This is a single video, so treat it as a demonstration, not a ranking.
+- **A fresh, pre-registered benchmark is running:** 48 new videos, short and long, with every tool run once under rules [committed before any data was built](docs/fresh-bench-protocol.md). Its results will replace the caveat above.
 
 vwatch's own watcher loop (the standalone CLI below) scores 0.79 F1, up from 0.69 in v0.1. Full tables, charts and caveats: [docs/benchmark.md](docs/benchmark.md).
 <!-- RESULTS:END -->
@@ -115,7 +117,9 @@ Setup, options and the eval commands: [docs/cli.md](docs/cli.md).
 
 ## FAQ
 
-**What does the first run download?** uv, Python, vwatch and a static ffmpeg: about 170 MB (~35 s) on Apple Silicon, about 350 MB on Linux x86_64. The first transcript also fetches a whisper model (~480 MB for the default `small`). Later starts take about a second. [Details](docs/mcp.md#install).
+**What does the first run download?** uv, Python, vwatch and a static ffmpeg: about 170 MB (~35 s) on Apple Silicon, about 350 MB on Linux x86_64. The whisper model (~480 MB for the default `small`) is fetched only when your agent first asks for a transcript, never in the background, so frame-only use never downloads it. Later starts take about a second. [Details](docs/mcp.md#install).
+
+**How long can videos be?** Long recordings work. Seeks and crops jump straight to the moment (about 0.1 s on a 21-minute file), and when you open a video the server starts its signal scan, and its transcript if the speech model is already on disk, in the background, so they are ready by the time your agent asks.
 
 **Is my video uploaded anywhere?** vwatch reads local files only, refuses URLs, and runs ffmpeg and whisper on your machine. The frames and text it returns become part of your agent's conversation, so they go wherever your agent's model runs, like any image you paste.
 
@@ -129,7 +133,7 @@ Setup, options and the eval commands: [docs/cli.md](docs/cli.md).
 
 ## Learn more
 
-[Benchmark](docs/benchmark.md) · [Eval harness](docs/eval-harness.md) · [Datasets](docs/DATA.md) · [MCP reference](docs/mcp.md) · [CLI](docs/cli.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+[Benchmark](docs/benchmark.md) · [Fresh benchmark protocol](docs/fresh-bench-protocol.md) · [Eval harness](docs/eval-harness.md) · [Datasets](docs/DATA.md) · [MCP reference](docs/mcp.md) · [CLI](docs/cli.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## License
 
