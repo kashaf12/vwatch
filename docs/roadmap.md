@@ -8,6 +8,7 @@ From the pilot verdict and the head-to-head ([benchmark.md](benchmark.md)), in r
 - [ ] **Close the gap to Claude Code on defects.** Add full-pass detectors like the ones the agents improvised (ffmpeg `freezedetect`, `signalstats`, audio/video seam checks for jump cuts), since freezes and jump cuts are where all of the gap is. The new freeze and jump-cut detectors in `src/vwatch/detectors.py` are the start.
 - [ ] **Rework or drop the prediction step.** It adds cost without measurable gain over signals-only attention (W-noP), on both the pilot and the defect benchmark.
 - [ ] **Audit sources for edits already in the footage**, with a rule fixed before scoring (e.g. the jump-cut detector on each raw segment, every hit excluded for every tool), then re-run all tools. One such moment in the `sem` lecture accounts for most of the plugin's wrong reports.
+- [ ] **A fresh held-out test set** for every tool: the plugin's hint and skill wording was revised after reading its failures on the current 40 benchmark videos.
 - [ ] **More sources.** T1 rests on 4 source clips; more (the T1x Commons set is the start) narrows the confidence intervals more than anything else.
 - [ ] **Full run**: all arms × all videos × 3 repeats, thresholds locked first.
 - [ ] **A Gemini-backed comparison**, since Gemini takes video natively.

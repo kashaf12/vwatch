@@ -43,6 +43,11 @@ CELL_SOUND = 0.5  # share of the hold with sound on
 EXACT_HOLD_S = 1.2  # an exact hold this long while speech goes on is a freeze even without a catch-up
 EXACT_SOUND = 0.8
 CELL_DIFF_MIN = 0.05  # 64 px motion around the hold must not be flat zero (a static scene with cell noise)
+CELL_GAP = 1  # single-frame blips (encoder refresh) tolerated inside a cell-level hold
+CELL_GAP_MAX = 1.0  # ... only if the blip is this small and the frames either side are exact repeats
+CELL_JUMP = True  # also measure the catch-up jump on the cell track (fast motion hides it in the 64 px mean)
+CORE_FLAT_STD = 0.02  # a hold core this steady (std) counts as an exact repeat even above CELL_CORE ...
+CORE_FLAT_MAX = 0.2  # ... up to this level (constant encoder noise on a repeated frame)
 
 # jump cut
 JUMP_SPIKE = 2.2  # frame diff vs its +-10 frame median
@@ -213,6 +218,8 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
         base = max(0.05, m_post, 0.5 * m_pre)
         held = (f"picture held still for {dur:.2f}s in a clip without sound" if silent_clip
                 else f"picture held still for {dur:.2f}s while sound continues")
+        if track.cell_max is not None and len(track.cell_max) == n:
+            held += " (frames identical at mid resolution: an exact repeat, not a dissolve or slow move)"
         after = min(n - 1, b + 1)
         same = track.frames is not None and len(track.frames) == n and same_shot(track.frames[a], track.frames[after])
         if silent_clip and resume >= cut_thr and same and m_pre >= MOTION_MIN:
@@ -253,12 +260,20 @@ def _cell_holds(track: SignalTrack, sound: np.ndarray, min_s: float) -> list[Can
         return []
     still = cell < CELL_STILL
     still[0] = False
+    if CELL_GAP:
+        for a, b in _runs(~still):
+            if (b - a <= CELL_GAP and a > 1 and b < n and still[a - 1] and still[b]
+                    and float(cell[a:b].max()) < CELL_GAP_MAX and cell[a - 1] < CELL_CORE and cell[b] < CELL_CORE):
+                still[a:b] = True
     out: list[Candidate] = []
     for a, b in _runs(still):
         dur = (b - a) / track.fps
         if dur < min_s or b >= n - 1:
             continue  # too short, or the video ends on it
-        if float(np.median(cell[min(a + 2, b - 1):b])) > CELL_CORE:
+        core = cell[min(a + 2, b - 1):b]
+        med = float(np.median(core))
+        flat = CORE_FLAT_STD > 0 and med <= CORE_FLAT_MAX and float(np.std(core[core < CELL_STILL])) < CORE_FLAT_STD
+        if med > CELL_CORE and not flat:
             continue  # something still moves inside: a calm speaker, not a repeated frame
         t0, t1 = a / track.fps, b / track.fps
         share = _share(sound, HOP_S, t0, t1)
@@ -274,6 +289,8 @@ def _cell_holds(track: SignalTrack, sound: np.ndarray, min_s: float) -> list[Can
             continue
         base = max(0.05, d_post, 0.5 * d_pre)
         jump = float(diff[b]) / base
+        if CELL_JUMP:
+            jump = max(jump, float(cell[b]) / max(0.05, c_post, 0.5 * c_pre))
         if jump >= CATCH_UP:
             out.append(Candidate(t0, t1, "freeze", 0.9, f"every cell held still for {dur:.2f}s while speech continues, "
                                                          f"then jumps ahead {jump:.0f}x the normal motion (catch-up)"))

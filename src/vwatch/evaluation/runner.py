@@ -33,7 +33,7 @@ TASK_LANGUAGE = {Task.DEFECTS: "hi"}  # the original T1 videos are Hindi Shorts
 
 def language_for(item: DatasetItem) -> str | None:
     """Whisper language hint: Hindi for the original Shorts, auto-detect for everything else (T1x is multilingual)."""
-    if item.video_id.startswith("t1x_"):
+    if item.video_id.startswith(("t1x_", "fdev")):  # fdev*: freeze dev sets built from the T1x sources
         return None
     return TASK_LANGUAGE.get(item.task)
 
