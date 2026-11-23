@@ -260,6 +260,38 @@ class TestCellHolds:
         cells[60:90] = np.tile([0.05, 0.17], 15)  # lips: small, but changing frame to frame
         assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
 
+    def test_still_slide_between_cuts_is_not_a_freeze(self):
+        # lecture: talking head, cut to a static slide narrated over for a while, cut back to the speaker
+        diff, cells = self.head(resume=40.0, b=150 - 2, n=150)
+        diff[60] = 40.0  # the hold starts with a cut
+        frames = np.zeros((150, 4, 4), np.uint8)
+        frames[60:148] = 220  # the slide looks nothing like the speaker shots
+        t = dataclasses.replace(track(diff, cell_max=cells), frames=frames)
+        assert detectors.detect_freezes(t) == []
+
+    def test_hold_ending_in_a_cut_to_another_shot_is_left_to_the_main_rule(self):
+        diff, cells = self.head(resume=40.0)
+        frames = np.zeros((150, 4, 4), np.uint8)
+        frames[90:] = 220  # after the hold: a different shot
+        t = dataclasses.replace(track(diff, cell_max=cells), frames=frames)
+        assert all(c.score <= 0.55 for c in detectors.detect_freezes(t))
+
+    def test_pause_before_duplicate_frame_motion_is_not_a_catch_up(self):
+        # a 24 fps pan re-encoded to 30 fps: every few frames repeat, so motion alternates 0.1 / ~5
+        diff, cells = self.head(resume=3.0, around_diff=0.1, around_cell=1.5)
+        diff[1:60:2] = 5.0
+        diff[91::2] = 5.0
+        cells[1:60:2] = 8.0
+        cells[91::2] = 8.0
+        assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
+
+    def test_jump_after_a_still_start_scores_low(self):
+        # a slide holds, then a pan starts: little motion before, a jump and motion after
+        diff, cells = self.head(resume=3.0)
+        cells[45:60] = 0.7  # something small moved before the hold (above still, below moving)
+        out = detectors.detect_freezes(track(diff, cell_max=cells))
+        assert [c.score for c in out] == [0.55] and "pause before" in out[0].note
+
     def test_not_reported_twice(self):
         diff, cells = held()  # the classic case: both passes see it
         out = detectors.detect_freezes(track(diff, cell_max=cells))

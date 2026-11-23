@@ -252,12 +252,18 @@ def _cell_holds(track: SignalTrack, sound: np.ndarray, min_s: float) -> list[Can
     while the cells around it move (>= CELL_MOVING) and speech goes on. A catch-up jump at the end
     scores 0.9; an exact hold of EXACT_HOLD_S or more with speech nearly throughout scores 0.6.
     """
-    from vwatch.signals import HOP_S, Candidate, _runs
+    from vwatch.signals import HOP_S, Candidate, _runs, _spike_threshold
 
     cell, diff = track.cell_max, track.diff
     n = len(diff)
     if cell is None or len(cell) != n or n < 3:
         return []
+    cut_thr = _spike_threshold(diff)
+    frames = track.frames if track.frames is not None and len(track.frames) == n else None
+
+    def new_shot(i: int, j: int) -> bool:
+        """A cut-sized change from frame i to j that also looks like another shot."""
+        return float(diff[j]) >= cut_thr and (frames is None or not same_shot(frames[i], frames[j]))
     still = cell < CELL_STILL
     still[0] = False
     if CELL_GAP:
@@ -275,6 +281,10 @@ def _cell_holds(track: SignalTrack, sound: np.ndarray, min_s: float) -> list[Can
         flat = CORE_FLAT_STD > 0 and med <= CORE_FLAT_MAX and float(np.std(core[core < CELL_STILL])) < CORE_FLAT_STD
         if med > CELL_CORE and not flat:
             continue  # something still moves inside: a calm speaker, not a repeated frame
+        if a > 0 and new_shot(a - 1, a):
+            continue  # the hold starts with a cut: a still shot or slide, not a picture that stopped
+        if new_shot(min(a + 1, b - 1), b):
+            continue  # it ends with a cut to another shot: the main rule reports that case (low score)
         t0, t1 = a / track.fps, b / track.fps
         share = _share(sound, HOP_S, t0, t1)
         if share < CELL_SOUND:
@@ -291,9 +301,13 @@ def _cell_holds(track: SignalTrack, sound: np.ndarray, min_s: float) -> list[Can
         jump = float(diff[b]) / base
         if CELL_JUMP:
             jump = max(jump, float(cell[b]) / max(0.05, c_post, 0.5 * c_pre))
-        if jump >= CATCH_UP:
+        if jump >= CATCH_UP and c_pre >= CELL_MOVING:
             out.append(Candidate(t0, t1, "freeze", 0.9, f"every cell held still for {dur:.2f}s while speech continues, "
                                                          f"then jumps ahead {jump:.0f}x the normal motion (catch-up)"))
+        elif jump >= CATCH_UP:  # still before, moving after: a stopped picture, or a pause before a pan or gesture
+            out.append(Candidate(t0, t1, "freeze", 0.55, f"every cell held still for {dur:.2f}s while speech continues, "
+                                                          "then motion starts with a jump (frozen picture, or a pause "
+                                                          "before a camera move? check the frames either side)"))
         elif dur >= EXACT_HOLD_S and share >= EXACT_SOUND and min(c_pre, c_post) >= CELL_MOVING:
             out.append(Candidate(t0, t1, "freeze", 0.6, f"every cell held still for {dur:.2f}s while speech continues "
                                                          "in a moving shot (frozen picture?)"))
