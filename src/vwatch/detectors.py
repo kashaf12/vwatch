@@ -35,6 +35,14 @@ MOTION_MIN = 0.15  # median frame diff around a hold that counts as "the scene w
 CATCH_UP = 4.0  # resume jump vs the surrounding motion that marks a catch-up after a hold
 SOUND_MIN = 0.3  # share of the hold with sound on
 SILENT_CLIP_SHARE = 0.1  # below this share of sound over the whole clip, the clip counts as silent
+# cell-level holds (talking heads whose 64 px average barely moves); tuned on eval/bench/make_freeze_dev.py
+CELL_STILL = 0.5  # largest cell change below this = the frame (nearly) repeats at mid resolution
+CELL_CORE = 0.04  # median largest cell change inside the hold: an exact repeat, not a calm speaker
+CELL_MOVING = 1.0  # median largest cell change around the hold: the speaker visibly moves
+CELL_SOUND = 0.5  # share of the hold with sound on
+EXACT_HOLD_S = 1.2  # an exact hold this long while speech goes on is a freeze even without a catch-up
+EXACT_SOUND = 0.8
+CELL_DIFF_MIN = 0.05  # 64 px motion around the hold must not be flat zero (a static scene with cell noise)
 
 # jump cut
 JUMP_SPIKE = 2.2  # frame diff vs its +-10 frame median
@@ -223,6 +231,55 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
             out.append(Candidate(t0, t1, "freeze", 0.9, held + f", then jumps ahead {resume / base:.0f}x the "
                                                               "normal motion (catch-up after a frozen frame)"))
         # else: motion restarts gently (or the video ends): a natural pause, not reported
+    if not silent_clip:
+        out += [c for c in _cell_holds(track, sound, min_s) if not any(c.t0 <= o.t1 and c.t1 >= o.t0 for o in out)]
+        out.sort(key=lambda c: c.t0)
+    return out
+
+
+def _cell_holds(track: SignalTrack, sound: np.ndarray, min_s: float) -> list[Candidate]:
+    """Holds found on the mid-resolution track, for scenes whose motion the 64 px average misses.
+
+    A speaker's lips and hands move a few cells; the 64 px mean barely changes, so the main rule sees
+    a still shot and drops it. Here the hold is every cell repeating (median change <= CELL_CORE)
+    while the cells around it move (>= CELL_MOVING) and speech goes on. A catch-up jump at the end
+    scores 0.9; an exact hold of EXACT_HOLD_S or more with speech nearly throughout scores 0.6.
+    """
+    from vwatch.signals import HOP_S, Candidate, _runs
+
+    cell, diff = track.cell_max, track.diff
+    n = len(diff)
+    if cell is None or len(cell) != n or n < 3:
+        return []
+    still = cell < CELL_STILL
+    still[0] = False
+    out: list[Candidate] = []
+    for a, b in _runs(still):
+        dur = (b - a) / track.fps
+        if dur < min_s or b >= n - 1:
+            continue  # too short, or the video ends on it
+        if float(np.median(cell[min(a + 2, b - 1):b])) > CELL_CORE:
+            continue  # something still moves inside: a calm speaker, not a repeated frame
+        t0, t1 = a / track.fps, b / track.fps
+        share = _share(sound, HOP_S, t0, t1)
+        if share < CELL_SOUND:
+            continue
+        c_pre = float(np.median(cell[max(1, a - 15):a])) if a > 1 else 0.0
+        c_post = float(np.median(cell[b + 1:b + 16]))
+        if max(c_pre, c_post) < CELL_MOVING:
+            continue  # nothing moves around it either: a still shot
+        d_pre = float(np.median(diff[max(1, a - 15):a])) if a > 1 else 0.0
+        d_post = float(np.median(diff[b + 1:b + 16]))
+        if max(d_pre, d_post) < CELL_DIFF_MIN:
+            continue
+        base = max(0.05, d_post, 0.5 * d_pre)
+        jump = float(diff[b]) / base
+        if jump >= CATCH_UP:
+            out.append(Candidate(t0, t1, "freeze", 0.9, f"every cell held still for {dur:.2f}s while speech continues, "
+                                                         f"then jumps ahead {jump:.0f}x the normal motion (catch-up)"))
+        elif dur >= EXACT_HOLD_S and share >= EXACT_SOUND and min(c_pre, c_post) >= CELL_MOVING:
+            out.append(Candidate(t0, t1, "freeze", 0.6, f"every cell held still for {dur:.2f}s while speech continues "
+                                                         "in a moving shot (frozen picture?)"))
     return out
 
 
