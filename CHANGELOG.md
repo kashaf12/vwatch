@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-23
+
+### Added
+
+- **Freezes in talking heads.** A second freeze pass on the mid-resolution track finds holds where every cell repeats while the cells around move and speech continues. The 64 px average barely moves on a speaking face, so the main rule used to drop these as still shots. A catch-up jump scores 0.9; an exact hold of 1.2 s or more with speech nearly throughout scores 0.6. On a fresh freeze dev set (`eval/bench/make_freeze_dev.py`, 60 new injections disjoint from the benchmark) freeze recall went from 43/60 to 55/60 at 100% precision; on the held-out benchmark detector recall went from 4/7 to 5/7, still with no false alarms.
+- `eval/bench/eval_signals.py fdev` scores the detectors on that set.
+
+### Changed
+
+- `silence_in_speech`: sound dropping to exact digital zero mid-speech, in a clip that otherwise keeps room tone, scores 0.9 and the hint says so. On real recordings every injected dropout is exact zero and every natural pause keeps room tone. Clips where every pause is exact zero (synthetic narration) get a note instead.
+- The `flash` hint says the picture returns to where it was, so a spliced-in frame showing the same scene is not mistaken for movement.
+- `watch-video` skill: how to confirm flashes and dropouts, and reject a hint scored 0.9 or more only with direct evidence.
+- Benchmark with 3 runs per tool: the plugin goes from F1 0.79 to 0.82 (recall 0.73 to 0.79), within noise of plain Claude Code (0.83) and claude-video-vision (0.86), at about half their cost. See `docs/benchmark.md`.
+
+### Fixed
+
+- External-arm audit: numpy's `~` in inline code, sed substitutions and `/dev/stdin` no longer count as leaving the sandbox. 4 plain Claude Code runs had been wrongly failed; they were re-run.
+
 ## [0.2.1] - 2026-11-23
 
 ### Fixed
@@ -56,7 +74,8 @@ First public release.
 - **Pilot result** (`eval/results/pilot-2026-11-22.md`): verdict ITERATE.
 - `vw` CLI: `watch`, `signals`, `dataset build`, `eval run`, `eval report`.
 
-[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/kashaf12/vwatch/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kashaf12/vwatch/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kashaf12/vwatch/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kashaf12/vwatch/releases/tag/v0.1.0

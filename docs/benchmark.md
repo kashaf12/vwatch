@@ -2,7 +2,7 @@
 
 Everything vwatch has measured so far, newest first. How the runs are set up (arms, tasks, budgets, how to reproduce) is in [eval-harness.md](eval-harness.md); the full protocol and ship/kill thresholds are in [eval-protocol.md](eval-protocol.md).
 
-**Short version.** Claude Code with the vwatch plugin finds video defects about as well as plain Claude Code and the other Claude Code video plugins (0.80 vs 0.85–0.86 F1, differences within noise) at about 40% lower cost and half the wall time. It is not cheaper on 5–30 s clips. vwatch's own watcher loop went from 0.69 to 0.79 F1 between v0.1 and v0.2, and both beat uniform frame sampling (0.37) by more than 40 pp.
+**Short version.** With three runs per tool, Claude Code with the vwatch plugin (v0.2.2) finds video defects as well as plain Claude Code and claude-video-vision (F1 0.82 vs 0.83 and 0.86, within noise; recall 0.79 vs 0.80 and 0.76) at about half the cost and twice the speed. Most of its wrong reports are one real edit in a source lecture; counting that as real for every tool, it scores highest (0.87). It is not cheaper on 5–30 s clips. vwatch's own watcher loop went from 0.69 to 0.79 F1 between v0.1 and v0.2, and every tool-using arm beats uniform frame sampling (0.37) by more than 40 pp.
 
 - [Claude Code + vwatch plugin (2026-11-23)](#claude-code--vwatch-plugin-2026-11-23)
 - [Head-to-head with Claude Code video tools (2026-11-22)](#head-to-head-with-claude-code-video-tools)
@@ -13,6 +13,29 @@ Everything vwatch has measured so far, newest first. How the runs are set up (ar
 ## Claude Code + vwatch plugin (2026-11-23)
 
 <!-- PLUGIN-RESULTS:START -->
+### Three runs per tool (v0.2.2)
+
+v0.2.2 adds cell-level freeze detection, a digital-silence dropout hint and skill guidance on strong hints (see the [changelog](../CHANGELOG.md)). Detector changes were tuned on a fresh freeze dev set (`eval/bench/make_freeze_dev.py`, disjoint from the benchmark videos); the 40 benchmark videos were only scored. Plugin, plain Claude Code and claude-video-vision ran 3 times each on the same 40 T1x videos; repeats are averaged per video before bootstrapping. Report: [bench-plugin-3runs-2026-11-23.md](../eval/results/bench-plugin-3runs-2026-11-23.md).
+
+| Arm (runs) | F1 | Precision | Recall | $ / video-min | s / video-min | Flash | Freeze | Jump cut | Dropout |
+|---|---|---|---|---|---|---|---|---|---|
+| claude-video-vision (3) | **0.86** | **1.00** | 0.76 | $0.39 | 61 | 21/21 | 16/21 | 7/24 | 24/24 |
+| popcorn (1) | 0.85 | 0.86 | 0.83 | $0.46 | 102 | 7/7 | 6/7 | 5/8 | 7/8 |
+| Plain Claude Code (3) | 0.83 | 0.87 | **0.80** | $0.30 | 66 | 21/21 | 18/21 | 9/24 | 24/24 |
+| **Claude Code + vwatch plugin v0.2.2 (3)** | 0.82 | 0.86 | 0.79 | **$0.17** | **32** | 21/21 | 15/21 | 11/24 | 24/24 |
+| Claude Code + vwatch plugin v0.2.1 (3) | 0.79 | 0.85 | 0.73 | $0.17 | 33 | 20/21 | 13/21 | 12/24 | 21/24 |
+| Frames + transcript (1) | 0.37 | 0.88 | 0.23 | $0.28 | 8 | 1/7 | 5/7 | 1/8 | 0/8 |
+
+Paired F1 differences for v0.2.2 (cluster bootstrap over the 10 source clips): plugin − Claude Code −1.2 pp [−11.0, +9.2]; plugin − claude-video-vision −4.0 pp [−11.8, +4.1]; plugin − popcorn −2.7 pp [−11.6, +6.5]; plugin − frames **+45.2 pp** [+24.4, +67.6].
+
+**Where the remaining gap is.** The plugin's recall matches plain Claude Code and beats claude-video-vision; its precision is lower. 10 of its 12 wrong reports in 120 runs are the same moment: a real edit in the `sem` source lecture (the speaker's pose snaps between two frames and the audio clicks), which the dataset labels clean because it assumed the source footage was clean. As a sensitivity check, not the primary result, dropping jump-cut reports at that edit for every tool alike gives F1 plugin **0.871**, claude-video-vision 0.861, popcorn 0.847, plain Claude Code 0.832 (plugin − claude-video-vision +1.0 pp [−7.1, +8.2]).
+
+**What changed from v0.2.1 to v0.2.2.** In the v0.2.1 runs the agent dismissed true hints: a spliced-in flash frame showing the same speaker was "slight movement", and a 1.2 s cut to digital silence was "a pause between sentences". The dropout hint now says when sound drops to exact digital zero in a clip that otherwise keeps room tone (on real recordings every injected dropout is exact zero and every natural pause keeps −58 to −88 dB), the flash hint says the picture returns to where it was, and the skill tells the agent to reject a 0.9+ hint only with direct evidence. Dropouts went from 21/24 to 24/24, flashes from 20/21 to 21/21, and freezes from 13/21 to 15/21.
+
+The TVBench numbers below are from v0.2.0's single run; the v0.2.2 changes only touch defect hints.
+
+### Single run (v0.2.0)
+
 Arm **VWP** is plain headless Claude Code with the vwatch plugin installed (MCP tools + `watch-video` skill), prompted with `/vwatch:watch <video> <task>`. It is sandboxed and audited like the other Claude Code arms, and its MCP server runs from the checkout under test. **W** is vwatch's own watcher loop at v0.2. Both were run on 2026-11-23 with the silent-clip freeze fixes. CC, CVV, POP and B1 are the 2026-11-22 runs below; they don't use vwatch code, so they were not re-run. Reports: [defects](../eval/results/bench-plugin-2026-11-23.md), [TVBench](../eval/results/bench-plugin-tvbench-2026-11-23.md), [TVBench held-out](../eval/results/bench-plugin-tvbench-heldout-2026-11-23.md).
 
 <p align="center"><img src="assets/bench-2026-11-23.png" width="100%" alt="Bar charts: defect F1 (Claude Code 0.86, claude-video-vision 0.85, popcorn 0.85, Claude Code + vwatch plugin 0.80, vwatch loop 0.79, frames + transcript 0.37), cost and wall time per video-minute, and TVBench accuracy"></p>
