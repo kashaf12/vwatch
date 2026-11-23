@@ -18,6 +18,23 @@ Answer with JSON only:
 {{"defects": [{{"type": "<one of: {', '.join(t.value for t in DEFECT_DEFINITIONS)}>", "start": <seconds>, "end": <seconds>, "evidence": "<what you saw/heard>"}}]}}
 Use an empty list if the video has no defects."""
 
+_GENERIC_TYPES = ("flash_frame", "frozen_frame", "jump_cut", "audio_dropout")
+_GENERIC_DEFS = {
+    "flash_frame": "1-3 frames (under 0.1 s) of an unrelated, blank or white image flash on screen.",
+    "frozen_frame": "the picture freezes (no movement at all) while the sound continues, then resumes.",
+    "jump_cut": "a short piece of the video and audio is missing: the picture jumps and a word is clipped.",
+    "audio_dropout": "the sound goes silent in the middle of speech while the picture continues.",
+}
+# Fresh held-out benchmark (docs/fresh-bench-protocol.md): any kind of video, the four generic defect types only.
+_T1_GENERIC = f"""TASK: You are QA-checking a video before it is published.
+Find every production defect of these types:
+{chr(10).join(f"- {t}: {_GENERIC_DEFS[t]}" for t in _GENERIC_TYPES)}
+NOT defects: normal scene changes, natural pauses between sentences, slides or graphics that hold still while
+someone talks, deliberate transitions. Only report something you have evidence for.
+Answer with JSON only:
+{{"defects": [{{"type": "<one of: {', '.join(_GENERIC_TYPES)}>", "start": <seconds>, "end": <seconds>, "evidence": "<what you saw/heard>"}}]}}
+Use an empty list if the video has no defects."""
+
 _T2 = """TASK: List every distinct visual event in this video: a shape appearing (and later disappearing), an existing
 shape changing colour, a shape moving across the screen, or the whole screen flashing a colour.
 Ignore the slow continuous drift of background elements. Describe each event with basic colour words
@@ -67,6 +84,8 @@ def free_prompt(question: str) -> str:
 
 def task_prompt(task: Task, truth: object | None = None) -> str:
     if task is Task.DEFECTS:
+        if getattr(truth, "video_id", "").startswith("fx"):  # fresh benchmark items
+            return _T1_GENERIC
         return _T1
     if task is Task.EVENTS:
         return _T2
