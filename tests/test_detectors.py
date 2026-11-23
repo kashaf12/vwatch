@@ -1,3 +1,5 @@
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -146,6 +148,21 @@ class TestFreeze:
         diff, cells = held()
         out = detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0)))
         assert len(out) == 1 and out[0].score == 0.9 and "without sound" in out[0].note
+
+    def test_silent_clip_hold_then_cut_is_reported_low(self):
+        # A catch-up far into a fast shot looks like a new scene; reported low for the agent to check.
+        diff, cells = held(resume=40.0)
+        frames = np.zeros((150, 4, 4), np.uint8)
+        frames[90:] = 200  # the picture after the hold looks like another shot
+        t = dataclasses.replace(track(diff, cell_max=cells, rms_db=np.full(250, -90.0)), frames=frames)
+        out = detectors.detect_freezes(t)
+        assert [c.score for c in out] == [0.55] and "scene cut" in out[0].note
+
+    def test_silent_clip_still_shot_then_cut_is_not_a_freeze(self):
+        diff, cells = held(resume=40.0)
+        diff[1:60] = 0.02  # the held shot never moved before the hold
+        out = detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0)))
+        assert out == []
 
     def test_quiet_sound_still_counts(self):
         diff, cells = held()

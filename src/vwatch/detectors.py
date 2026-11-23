@@ -209,13 +209,15 @@ def detect_freezes(track: SignalTrack, min_s: float = 0.4) -> list[Candidate]:
         same = track.frames is not None and len(track.frames) == n and same_shot(track.frames[a], track.frames[after])
         if silent_clip and resume >= cut_thr and same and m_pre >= MOTION_MIN:
             # Silent clip: a cut-sized jump that stays in the same shot is the picture catching up after
-            # a freeze. (With sound the existing rules apply unchanged; widening them there added false
+            # a freeze. (With sound the catch-up rules apply unchanged; widening them there added false
             # alarms on the dev set.)
             out.append(Candidate(t0, t1, "freeze", 0.9, held + f", then jumps ahead {resume / base:.0f}x the "
                                                               "normal motion within the same shot (catch-up)"))
         elif resume >= cut_thr:
-            if m_pre < MOTION_MIN or silent_clip:  # silent: an editor's hold before a cut is too likely
+            if m_pre < MOTION_MIN:
                 continue  # the held shot itself never moved: a still shot, then a cut
+            # Ambiguous either way: an editor's hold, or a catch-up so far into a fast shot that it
+            # looks like a new scene. Reported at a low score so the agent checks it by eye.
             out.append(Candidate(t0, t1, "freeze", 0.55, held + ", then a scene cut (held frame before an edit?)"))
         elif resume >= CATCH_UP * base and m_post >= 0.05:
             out.append(Candidate(t0, t1, "freeze", 0.9, held + f", then jumps ahead {resume / base:.0f}x the "
