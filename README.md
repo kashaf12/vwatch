@@ -81,10 +81,25 @@ Uniform frame sampling misses anything shorter than the gap between frames: a on
 ## Results
 
 <!-- RESULTS:START -->
-(results landing: Claude Code + vwatch plugin vs plain Claude Code and other video plugins)
-<!-- RESULTS:END -->
+<p align="center"><img src="docs/assets/bench-2026-11-23.png" width="100%" alt="Bar charts: defect F1, cost and wall time per video-minute, and TVBench accuracy for Claude Code with the vwatch plugin, plain Claude Code, claude-video-vision, popcorn, the vwatch loop and frames plus transcript"></p>
 
-Earlier, on 40 real videos with injected defects, vwatch's own watcher loop beat frame sampling by +32 pp F1, but plain Claude Code with ffmpeg scored 0.86 F1 against the watcher's 0.69. That is why vwatch now ships as tools for your agent. Full tables, charts and caveats: [docs/benchmark.md](docs/benchmark.md).
+Same model (`claude-opus-5-5`) and the same prompts for every arm, on 40 openly licensed speech videos (10 sources, 7 languages), each with one injected glitch or none, plus 36 TVBench questions:
+
+| | Defect F1 | $ / video-min | s / video-min | TVBench |
+|---|---|---|---|---|
+| **Claude Code + vwatch plugin** | 0.80 | **$0.18** | **34** | 78% |
+| Plain Claude Code | **0.86** | $0.30 | 66 | 72% |
+| claude-video-vision | 0.85 | $0.37 | 61 | **81%** |
+| popcorn | 0.85 | $0.46 | 102 | 75% |
+| Frames + transcript | 0.37 | $0.28 | 8 | **81%** |
+
+- **As accurate, cheaper and faster on real videos.** The F1 gaps between the Claude Code arms are within noise (plugin minus plain Claude Code: −5.7 pp, 95% CI [−16.8, +4.1], bootstrapped over source clips). The plugin costs about 40% less and takes about half the time.
+- **Frames alone miss short glitches.** Uniform frames found 1 of 7 flash frames and 0 of 8 audio dropouts; every agent with tools found 7 of 7 flashes and at least 7 of 8 dropouts.
+- **Not cheaper on very short clips.** On TVBench's 5–30 s clips the skill's fixed setup dominates: $0.48 per video-minute against $0.21 for plain Claude Code.
+- One run per arm, so treat differences of a few points as ties.
+
+vwatch's own watcher loop (the standalone CLI below) scores 0.79 F1, up from 0.69 in v0.1. Full tables, charts and caveats: [docs/benchmark.md](docs/benchmark.md).
+<!-- RESULTS:END -->
 
 ## Standalone CLI
 

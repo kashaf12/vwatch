@@ -2,7 +2,7 @@
 
 Everything vwatch has measured so far, newest first. How the runs are set up (arms, tasks, budgets, how to reproduce) is in [eval-harness.md](eval-harness.md); the full protocol and ship/kill thresholds are in [eval-protocol.md](eval-protocol.md).
 
-**Short version.** vwatch's own watcher loop beats uniform frame sampling clearly (+32 pp defect F1 on 40 real videos), but a plain Claude Code agent running its own ffmpeg analysis beats the watcher (0.86 vs 0.69 F1) at about the same cost. That is why vwatch now ships as tools and a skill for your agent rather than as a second model. Whether your agent does better *with* those tools is the next result below.
+**Short version.** Claude Code with the vwatch plugin finds video defects about as well as plain Claude Code and the other Claude Code video plugins (0.80 vs 0.85–0.86 F1, differences within noise) at about 40% lower cost and half the wall time. It is not cheaper on 5–30 s clips. vwatch's own watcher loop went from 0.69 to 0.79 F1 between v0.1 and v0.2, and both beat uniform frame sampling (0.37) by more than 40 pp.
 
 - [Claude Code + vwatch plugin (2026-11-23)](#claude-code--vwatch-plugin-2026-11-23)
 - [Head-to-head with Claude Code video tools (2026-11-22)](#head-to-head-with-claude-code-video-tools)
@@ -13,7 +13,42 @@ Everything vwatch has measured so far, newest first. How the runs are set up (ar
 ## Claude Code + vwatch plugin (2026-11-23)
 
 <!-- PLUGIN-RESULTS:START -->
-> **Placeholder: results pending.** Arm VWP (plain Claude Code + the vwatch plugin: MCP tools and the `watch-video` skill, prompted with `/vwatch:watch`) against plain Claude Code (CC) and the other video plugins (CVV, POP) on the same T1x defect set and TVBench subset as the head-to-head below. To be filled in when the run finishes.
+Arm **VWP** is plain headless Claude Code with the vwatch plugin installed (MCP tools + `watch-video` skill), prompted with `/vwatch:watch <video> <task>`. It is sandboxed and audited like the other Claude Code arms, and its MCP server runs from the checkout under test. **W** is vwatch's own watcher loop at v0.2. Both were run on 2026-11-23 with the silent-clip freeze fixes. CC, CVV, POP and B1 are the 2026-11-22 runs below; they don't use vwatch code, so they were not re-run. Reports: [defects](../eval/results/bench-plugin-2026-11-23.md), [TVBench](../eval/results/bench-plugin-tvbench-2026-11-23.md), [TVBench held-out](../eval/results/bench-plugin-tvbench-heldout-2026-11-23.md).
+
+<p align="center"><img src="assets/bench-2026-11-23.png" width="100%" alt="Bar charts: defect F1 (Claude Code 0.86, claude-video-vision 0.85, popcorn 0.85, Claude Code + vwatch plugin 0.80, vwatch loop 0.79, frames + transcript 0.37), cost and wall time per video-minute, and TVBench accuracy"></p>
+
+**Defect detection** (the same 40 T1x videos as the head-to-head below).
+
+| Arm | F1 | Precision | Recall | $ / video-min | s / video-min | Flash | Freeze | Jump cut | Dropout | Clean false alarms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Plain Claude Code (CC) | **0.86** | 0.92 | 0.80 | $0.30 | 66 | 7/7 | 6/7 | 3/8 | 8/8 | 1/10 |
+| claude-video-vision (CVV) | 0.85 | **1.00** | 0.73 | $0.37 | 61 | 7/7 | 5/7 | 2/8 | 8/8 | 0/10 |
+| popcorn (POP) | 0.85 | 0.86 | **0.83** | $0.46 | 102 | 7/7 | 6/7 | 5/8 | 7/8 | 2/10 |
+| **Claude Code + vwatch plugin (VWP)** | 0.80 | 0.88 | 0.73 | **$0.18** | 34 | 7/7 | 4/7 | 3/8 | 8/8 | 1/10 |
+| vwatch loop v0.2 (W) | 0.79 | 0.85 | 0.73 | $0.28 | 36 | 7/7 | 3/7 | 4/8 | 8/8 | 1/10 |
+| Frames + transcript (B1) | 0.37 | 0.88 | 0.23 | $0.28 | **8** | 1/7 | 5/7 | 1/8 | 0/8 | 0/10 |
+
+Paired F1 differences, cluster-bootstrapped over the 10 source clips (10,000 resamples):
+
+| Comparison | Δ F1 | 95% CI |
+|---|---|---|
+| VWP − CC | −5.7 pp | [−16.8, +4.1] |
+| VWP − CVV | −4.6 pp | [−17.8, +8.6] |
+| VWP − POP | −4.7 pp | [−17.0, +6.6] |
+| VWP − W | +1.4 pp | [−2.5, +6.5] |
+| VWP − B1 | **+43.2 pp** | [+20.5, +67.0] |
+| W − CC | −7.1 pp | [−16.3, +3.1] |
+| W − B1 | **+41.7 pp** | [+20.5, +65.1] |
+
+**TVBench.** Plugin accuracy on the 36-question subset is 78%, against plain Claude Code 72%, claude-video-vision 81%, popcorn 75%, frames + transcript 81% and the vwatch loop 69%. On the 24 held-out questions it is 92%, against 96% for Claude Code, claude-video-vision and the vwatch loop, and 92% for popcorn. None of these gaps is significant.
+
+**What this says.**
+
+- **Accuracy:** tied with the best Claude Code tools on both sets. It is not better: the plugin trails plain Claude Code by a few points on defects, inside the noise. The remaining misses are mostly freezes and jump cuts, the two kinds where hints are weakest (detector recall on the held-out set: freeze 4/7, jump cut 4/8).
+- **Cost and speed:** about 40% cheaper and about 2× faster than plain Claude Code on 50 s videos. It is not cheaper on short clips: on TVBench (5–30 s) it costs $0.48 per video-minute against $0.21, because the skill's fixed calls (info, signals, overview) dominate a few seconds of video.
+- **Clean-video false alarms** are all jump cuts that look like real edits in the source footage, not hallucinations. VWP and W both flagged 2.93 s in `t1x_sem_clean_0`, where the speaker's head and hands snap between two frames and the audio clicks on the same frame. Claude Code and popcorn flagged similar moments in other clips. They still count, because the dataset labels those clips clean.
+- **vwatch loop v0.1 → v0.2:** the new freeze and jump-cut detectors took it from 0.69 to 0.79 F1 (jump cuts 0/8 → 4/8). It no longer trails plain Claude Code significantly.
+- One run per arm and 40 videos, so differences of a few points are not meaningful. Costs are as billed through the Claude Code CLI.
 <!-- PLUGIN-RESULTS:END -->
 
 ## Head-to-head with Claude Code video tools
@@ -34,7 +69,7 @@ Same model (`claude-opus-5-5`, effort medium) and the same task prompts for ever
 | vwatch (W) | 0.69 | 0.82 | 0.60 | $0.28 | 36 | 7/7 | 3/7 | 0/8 | 8/8 |
 | Frames + transcript (B1) | 0.37 | 0.88 | 0.23 | $0.28 | **8** | 1/7 | 5/7 | 1/8 | 0/8 |
 
-Paired differences, bootstrapped over the 10 source clips: W − B1 **+32.4 pp** [+11.5, +54.7]; W − Claude Code **−16.5 pp** [−29.8, −2.0]; W − claude-video-vision −15.4 pp [−28.1, −4.6]; W − popcorn −15.5 pp [−28.5, −4.6]. No arm raised a false alarm on the 10 clean videos.
+Paired differences, bootstrapped over the 10 source clips: W − B1 **+32.4 pp** [+11.5, +54.7]; W − Claude Code **−16.5 pp** [−29.8, −2.0]; W − claude-video-vision −15.4 pp [−28.1, −4.6]; W − popcorn −15.5 pp [−28.5, −4.6]. On the 10 clean videos, vwatch, frames + transcript and claude-video-vision raised no false alarms; Claude Code raised 1 and popcorn 2, all jump cuts at what look like real edits in the source footage.
 
 **Public benchmark (TVBench subset).** 36 multiple-choice questions over 6 temporal categories: frames + transcript 81%, claude-video-vision 81%, popcorn 75%, Claude Code 72%, vwatch 69%. vwatch lost most on 5-second counting clips, where it skimmed at low resolution instead of looking at every frame. After adding a rule to watch short clips in full, it scored 96% on the 24 held-out questions, tied with Claude Code and claude-video-vision; that held-out set turned out easier for every arm (frames + transcript 88%).
 
