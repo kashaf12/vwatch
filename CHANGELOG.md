@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-23
+
+### Added
+
+- **More freezes found at cell level:**
+  - a catch-up jump measured on the cell track (after fast motion, e.g. animation, the 64 px jump looks ordinary);
+  - a single small refresh blip no longer splits a hold;
+  - a repeated frame with constant encoder noise counts as an exact repeat.
+- **Results:**
+  - Freeze recall on a fresh validation set (`fdev2`, never used for tuning): 56/60 → 59/60 at 100% precision.
+  - Held-out benchmark detector recall: 5/7 → 6/7.
+  - Plugin over 3 runs: 18/21 freezes (from 15/21), F1 0.85, recall 0.83.
+- `make_freeze_dev.py --prefix`, and `eval_signals.py fdev2`.
+
+### Changed
+
+- Freeze hints say the frames are identical at mid resolution (an exact repeat, not a dissolve or slow move). The skill tells the agent to check it is seeking inside the hinted span.
+
+### Notes
+
+- The hint and skill wording in 0.2.2 and 0.2.3 was revised after reading the plugin's failures on the benchmark videos, so its benchmark numbers are optimistic. See `docs/benchmark.md`.
+
 ## [0.2.2] - 2026-11-23
 
 ### Added
@@ -74,7 +96,8 @@ First public release.
 - **Pilot result** (`eval/results/pilot-2026-11-22.md`): verdict ITERATE.
 - `vw` CLI: `watch`, `signals`, `dataset build`, `eval run`, `eval report`.
 
-[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/kashaf12/vwatch/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/kashaf12/vwatch/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kashaf12/vwatch/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kashaf12/vwatch/compare/v0.1.0...v0.2.0

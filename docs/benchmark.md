@@ -2,7 +2,7 @@
 
 Everything vwatch has measured so far, newest first. How the runs are set up (arms, tasks, budgets, how to reproduce) is in [eval-harness.md](eval-harness.md); the full protocol and ship/kill thresholds are in [eval-protocol.md](eval-protocol.md).
 
-**Short version.** With three runs per tool, Claude Code with the vwatch plugin (v0.2.2) finds video defects as well as plain Claude Code and claude-video-vision (F1 0.82 vs 0.83 and 0.86, within noise; recall 0.79 vs 0.80 and 0.76) at about half the cost and twice the speed. It does not beat claude-video-vision: recall is level or higher, precision is lower. It is not cheaper on 5–30 s clips. vwatch's own watcher loop went from 0.69 to 0.79 F1 between v0.1 and v0.2, and every tool-using arm beats uniform frame sampling (0.37) by more than 40 pp.
+**Short version.** With three runs per tool, Claude Code with the vwatch plugin (v0.2.3) is statistically tied with plain Claude Code and claude-video-vision on finding video defects (F1 0.85 vs 0.83 and 0.86). It finds the most defects (recall 0.83) but has lower precision than claude-video-vision, at about half the cost and twice the speed. Its hint and skill wording was revised after reading its failures on the benchmark videos, so treat its numbers as optimistic until a fresh test set is run. It is not cheaper on 5–30 s clips. Every tool-using arm beats uniform frame sampling (0.37) by more than 40 pp.
 
 - [Claude Code + vwatch plugin (2026-11-23)](#claude-code--vwatch-plugin-2026-11-23)
 - [Head-to-head with Claude Code video tools (2026-11-22)](#head-to-head-with-claude-code-video-tools)
@@ -13,6 +13,21 @@ Everything vwatch has measured so far, newest first. How the runs are set up (ar
 ## Claude Code + vwatch plugin (2026-11-23)
 
 <!-- PLUGIN-RESULTS:START -->
+### Three runs per tool (v0.2.3)
+
+v0.2.3 adds three more cell-level freeze cases (catch-up after fast motion, one-frame refresh blips, constant encoder noise on a repeated frame) and states in the freeze hint that the frames are an exact repeat. Report: [bench-plugin-v023-2026-11-23.md](../eval/results/bench-plugin-v023-2026-11-23.md).
+
+> **Not fully held-out.** Detector thresholds were tuned only on dev sets: `fdev` (tuning) and `fdev2` (validation; freeze recall 59/60 at 100% precision), both built by `eval/bench/make_freeze_dev.py` from new injections, never the benchmark videos. But the wording of the flash, dropout and freeze hints and of the skill (v0.2.2 and v0.2.3) was written after reading the plugin's failure cases on these 40 benchmark videos. The plugin's numbers from v0.2.2 on are therefore optimistic. A fresh test set, run for every tool, is needed for a clean comparison.
+
+| Arm (runs) | F1 | Precision | Recall | $ / video-min | s / video-min | Flash | Freeze | Jump cut | Dropout |
+|---|---|---|---|---|---|---|---|---|---|
+| claude-video-vision (3) | **0.86** | **1.00** | 0.76 | $0.39 | 61 | 21/21 | 16/21 | 7/24 | 24/24 |
+| **Claude Code + vwatch plugin v0.2.3 (3)** | 0.85 | 0.87 | **0.83** | **$0.17** | **33** | 21/21 | 18/21 | 12/24 | 24/24 |
+| popcorn (1) | 0.85 | 0.86 | 0.83 | $0.46 | 102 | 7/7 | 6/7 | 5/8 | 7/8 |
+| Plain Claude Code (3) | 0.83 | 0.87 | 0.80 | $0.30 | 66 | 21/21 | 18/21 | 9/24 | 24/24 |
+
+Paired F1 differences for v0.2.3: plugin − claude-video-vision −0.8 pp [−10.0, +8.4]; plugin − Claude Code +2.0 pp [−8.1, +12.4]; plugin − popcorn +0.5 pp [−10.1, +10.7]; plugin − frames **+48.4 pp** [+26.9, +71.7]. None of the differences between the Claude Code tools is significant.
+
 ### Three runs per tool (v0.2.2)
 
 v0.2.2 adds cell-level freeze detection, a digital-silence dropout hint and skill guidance on strong hints (see the [changelog](../CHANGELOG.md)). Detector changes were tuned on a fresh freeze dev set (`eval/bench/make_freeze_dev.py`, disjoint from the benchmark videos); the 40 benchmark videos were only scored. Plugin, plain Claude Code and claude-video-vision ran 3 times each on the same 40 T1x videos; repeats are averaged per video before bootstrapping. Report: [bench-plugin-3runs-2026-11-23.md](../eval/results/bench-plugin-3runs-2026-11-23.md).

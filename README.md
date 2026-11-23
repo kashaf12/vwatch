@@ -87,15 +87,15 @@ Same model (`claude-opus-5-5`) and the same prompts for every arm, on 40 openly 
 
 | | Defect F1 | Recall | $ / video-min | s / video-min | TVBench |
 |---|---|---|---|---|---|
-| **Claude Code + vwatch plugin** | 0.82 | 0.79 | **$0.17** | **32** | 78% |
-| Plain Claude Code | 0.83 | **0.80** | $0.30 | 66 | 72% |
+| **Claude Code + vwatch plugin** | 0.85 | **0.83** | **$0.17** | **33** | 78% |
+| Plain Claude Code | 0.83 | 0.80 | $0.30 | 66 | 72% |
 | claude-video-vision | **0.86** | 0.76 | $0.39 | 61 | **81%** |
 | popcorn | 0.85 | 0.83* | $0.46 | 102 | 75% |
 | Frames + transcript | 0.37 | 0.23 | $0.28 | 8 | **81%** |
 
 <sub>Defect columns: 3 runs each for the plugin, Claude Code and claude-video-vision; *1 run for popcorn and frames.</sub>
 
-- **No measurable accuracy difference from the best tools, at half the cost and twice the speed.** All F1 gaps between the Claude Code arms are within noise (plugin minus claude-video-vision: −4.0 pp, 95% CI [−11.8, +4.1], bootstrapped over source clips). The plugin's recall (0.79) is level with plain Claude Code (0.80) and above claude-video-vision (0.76), but its precision is lower (0.86 vs 1.00), so it does not beat claude-video-vision on F1.
+- **No measurable accuracy difference from the best tools, at half the cost and twice the speed.** All F1 gaps between the Claude Code arms are within noise (plugin minus claude-video-vision: −0.8 pp, 95% CI [−10.0, +8.4], bootstrapped over source clips). The plugin finds the most defects (recall 0.83 vs 0.80 and 0.76) but raises more wrong reports than claude-video-vision (precision 0.87 vs 1.00). One caveat: the wording of its hints and skill was revised after reading its failures on these same videos, so its numbers are somewhat optimistic until a fresh test set is run.
 - **Frames alone miss short glitches.** Uniform frames found 1 of 7 flash frames and 0 of 8 audio dropouts; the plugin found all of both in every run.
 - **Not cheaper on very short clips.** On TVBench's 5–30 s clips the skill's fixed setup dominates: $0.48 per video-minute against $0.21 for plain Claude Code.
 
