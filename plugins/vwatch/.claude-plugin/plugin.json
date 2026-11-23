@@ -1,7 +1,7 @@
 {
   "name": "vwatch",
   "description": "Watch local video files like a person: MCP tools for timestamped frame grids, dense seeks, crops, transcript, loudness and model-free signal hints, plus the watch-video skill. The tools make no model calls and need no API key.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "author": {
     "name": "kashaf12",
     "url": "https://github.com/kashaf12"
@@ -16,7 +16,7 @@
   "mcpServers": {
     "vwatch": {
       "command": "sh",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/vwatch-mcp", "--python", ">=3.11,<3.13", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.4", "vwatch-mcp"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/vwatch-mcp", "--python", ">=3.11,<3.13", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"]
     }
   }
 }

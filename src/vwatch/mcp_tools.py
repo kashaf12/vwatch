@@ -76,6 +76,9 @@ _inflight: dict[tuple[tuple[str, int, int], str], Future] = {}
 # The MCP server turns this on: the first touch of a video starts its signal track, voice-activity check
 # and transcript in the background, so later calls find them ready. Plain function use stays synchronous.
 PREFETCH = False
+# The transcript is prefetched only when the speech model is already on disk: a first-time user who only
+# wants frames must never download it (~480 MB for "small") or pay for a transcription they didn't ask for.
+PREFETCH_TRANSCRIPT = True
 _pool: ThreadPoolExecutor | None = None
 _prefetched: list[Future] = []
 INFO_SPEECH_WAIT_S = 2.0  # with prefetch, video_info waits this long for the voice check, then moves on
@@ -238,8 +241,9 @@ def _start_prefetch(entry: _Entry) -> None:
         pool = _pool
     jobs: list[Callable[[], object]] = [lambda: _with_track(entry)]
     if entry.info.has_audio:
-        jobs += [lambda: _compute(entry, "speech", _speech_work(entry), _apply_speech),
-                 lambda: _with_transcript(entry, None)]
+        jobs.append(lambda: _compute(entry, "speech", _speech_work(entry), _apply_speech))  # bundled VAD, no download
+        if PREFETCH_TRANSCRIPT and transcribe.model_available():
+            jobs.append(lambda: _with_transcript(entry, None))
     futs = [pool.submit(_quiet, j) for j in jobs]
     with _lock:
         _prefetched[:] = [f for f in _prefetched if not f.done()] + futs
@@ -350,7 +354,7 @@ def video_info(path: str) -> list[Block]:
         speech_line = "audio: none"
     elif pending:
         speech_line = ("audio: yes; speech: still being checked in the background "
-                       "(the transcript is being prepared too; call video_transcript when you need it)")
+                       "(call video_transcript when you need the words)")
     elif e.speech_s is not None and e.speech_s < 0:
         speech_line = "audio: yes; speech: unknown (voice-activity check failed; try video_transcript)"
     elif e.speech_s and e.speech_s >= 0.3:

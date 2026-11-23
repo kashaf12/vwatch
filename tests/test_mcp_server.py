@@ -610,6 +610,7 @@ class TestConcurrencyAndPrefetch:
         calls = []
         self.slow_track(monkeypatch, calls, delay=0.05)
         monkeypatch.setattr(mt, "_speech_seconds", lambda p: 1.0)
+        monkeypatch.setattr(mt.transcribe, "model_available", lambda name=None: True)  # speech model on disk
         monkeypatch.setattr(mt, "PREFETCH", True)
         mt.video_info(str(tone_video))
         mt.wait_prefetch(timeout=10)
@@ -624,3 +625,24 @@ class TestConcurrencyAndPrefetch:
         mt.video_info(str(tone_video))
         mt.wait_prefetch(timeout=1)
         assert calls == [] and fake_whisper == []
+
+    def test_prefetch_never_downloads_the_speech_model(self, tone_video, monkeypatch, fake_whisper):
+        calls = []
+        self.slow_track(monkeypatch, calls, delay=0.0)
+        monkeypatch.setattr(mt, "_speech_seconds", lambda p: 1.0)
+        monkeypatch.setattr(mt.transcribe, "model_available", lambda name=None: False)  # first-time user
+        monkeypatch.setattr(mt, "PREFETCH", True)
+        mt.video_info(str(tone_video))
+        mt.wait_prefetch(timeout=10)
+        assert len(calls) == 1 and fake_whisper == []  # frames and signals only
+        mt.video_transcript(str(tone_video))  # an explicit request still transcribes
+        assert len(fake_whisper) == 1
+
+    def test_transcript_prefetch_can_be_turned_off(self, tone_video, monkeypatch, fake_whisper):
+        monkeypatch.setattr(mt, "_speech_seconds", lambda p: 1.0)
+        monkeypatch.setattr(mt.transcribe, "model_available", lambda name=None: True)
+        monkeypatch.setattr(mt, "PREFETCH", True)
+        monkeypatch.setattr(mt, "PREFETCH_TRANSCRIPT", False)
+        mt.video_info(str(tone_video))
+        mt.wait_prefetch(timeout=10)
+        assert fake_whisper == []
