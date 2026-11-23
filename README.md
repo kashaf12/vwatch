@@ -24,7 +24,17 @@ vwatch gives your agent eyes and ears for video files on your machine: timestamp
 
 That's it on macOS and Linux. On first start the plugin fetches [uv](https://docs.astral.sh/uv/), Python, vwatch and a static ffmpeg by itself (one-time download: about 170 MB on Apple Silicon, 350 MB on Linux; a system ffmpeg is used instead if you have one). Windows: see [the Windows notes](docs/mcp.md#windows).
 
-**Other agents** (Cursor, Claude Desktop, Windsurf, any MCP client): add the `vwatch` MCP server with `uvx`; copy-paste configs are in [docs/mcp.md](docs/mcp.md).
+## Use it with other agents
+
+The tools are a standard MCP server, so any agent that supports MCP and image results can use them:
+
+| Agent | Setup |
+|---|---|
+| **Codex** | add `[mcp_servers.vwatch]` to `~/.codex/config.toml`, plus the skill (checked: it finds the same glitches as Claude Code) |
+| **Gemini CLI** | `gemini extensions install https://github.com/kashaf12/vwatch` |
+| **Cursor, VS Code, opencode, Windsurf, Claude Desktop** | one JSON block in the agent's MCP config |
+
+Copy-paste setups for each: [docs/agents.md](docs/agents.md).
 
 ## Usage
 
@@ -68,15 +78,22 @@ SIGNALS: 31 of 31 candidate moments (top 40 by score, in time order). Model-free
 
 Hints are not verdicts (a sentence pause looks like an audio dropout); the skill has your agent confirm each one by looking or listening. Full reference: [docs/mcp.md](docs/mcp.md).
 
-## How it watches
+## How it works
 
-Uniform frame sampling misses anything shorter than the gap between frames: a one-frame flash, a half-second freeze, a dropped word. Sampling densely everywhere costs a fortune. The skill has your agent work like a person instead:
+An AI model can't watch a video. It only sees the pictures it is handed, and every picture costs money. A one-minute video has 1,800 frames, so agents usually look at about one frame per second. A glitch that lasts one frame (1/30 of a second) is then almost never seen.
 
-1. **Plan.** Decide what would answer the question, where on screen it would be, and which signals matter.
-2. **Take the free evidence.** Video facts, the transcript and the signal hints are cheap text, and the hints are computed from every frame.
-3. **Skim once.** One overview of the whole video, noting anything that breaks expectation.
-4. **Zoom on surprises.** Dense seeks, crops and listens only where the skim, the hints or the question point.
-5. **Cite times.** Answer first, then each moment with its timestamp and the tool that showed it; say what was only skimmed.
+vwatch works like a security guard with motion sensors:
+
+1. **Sensors first, free.** Before the AI sees anything, vwatch measures every frame and the whole soundtrack on your machine, in seconds and without any AI. It measures how much each frame differs from the one before, which part of the picture changed, and how loud the sound is every 1/50 of a second. Simple rules turn those numbers into alarms:
+   - **flash:** the picture jumps away and comes straight back within 1–4 frames;
+   - **freeze:** the picture stays exactly the same while the sound continues;
+   - **jump cut:** the picture jumps and the audio clicks on the same frame;
+   - **audio dropout:** the sound drops to dead silence mid-sentence.
+2. **One glance at everything.** The agent sees one grid of small thumbnails across the whole video, to understand what it is about.
+3. **Rewind only at the alarms.** At each alarm, or wherever the question points, the agent looks at every frame of that half-second, zooms into a region, or listens. Everywhere else it never looks closely, which is where the savings come from.
+4. **Answer with times.** Each finding comes with its timestamp and the tool that showed it, so you can check it yourself.
+
+Alarms are hints, not verdicts: a natural pause can look like a dropout. The [`watch-video`](plugins/vwatch/skills/watch-video/SKILL.md) skill tells the agent to confirm or dismiss each one by looking or listening before it reports anything.
 
 ## Results
 
@@ -95,7 +112,13 @@ Same model (`claude-opus-5-5`) and the same prompts for every arm, on 40 openly 
 
 <sub>Defect columns: 3 runs each for the plugin, Claude Code and claude-video-vision; *1 run for popcorn and frames.</sub>
 
-- **No measurable accuracy difference from the best tools, at half the cost and twice the speed.** All F1 gaps between the Claude Code arms are within noise (plugin minus claude-video-vision: −0.8 pp, 95% CI [−10.0, +8.4], bootstrapped over source clips). The plugin finds the most defects (recall 0.83 vs 0.80 and 0.76) but raises more wrong reports than claude-video-vision (precision 0.87 vs 1.00). One caveat: the wording of its hints and skill was revised after reading its failures on these same videos, so its numbers are somewhat optimistic until a fresh test set is run.
+**How to read this.**
+- **Recall:** of the real glitches in the videos, how many were found (0.83 = 83%).
+- **Defect F1:** one score from 0 to 1 that is high only when a tool finds most glitches *and* rarely reports a glitch that isn't there.
+- **$ / video-min and s / video-min:** the cost and the time to check one minute of video.
+- **TVBench:** accuracy on a public multiple-choice video quiz.
+
+- **As accurate as the best tools, at half the cost and twice the speed.** The accuracy differences between the Claude Code tools are too small to tell apart on 40 videos: the plugin is 0.8 points below claude-video-vision, and the statistical uncertainty runs from −10 to +8. It finds the most glitches (83% vs 80% and 76%), but 13% of its reports are wrong, while claude-video-vision makes none. One caveat: the wording of the plugin's hints was revised after reading its mistakes on these same videos, so its numbers are somewhat optimistic until the fresh test set is in.
 - **Frames alone miss short glitches.** Uniform frames found 1 of 7 flash frames and 0 of 8 audio dropouts; the plugin found all of both in every run.
 - **Not cheaper on very short clips.** On TVBench's 5–30 s clips the skill's fixed setup dominates: $0.48 per video-minute against $0.21 for plain Claude Code.
 - **Long videos work.** On a 21-minute lecture with a 2 s on-screen code word and a 1 s freeze spliced in, the plugin found both in 138–159 s (plain Claude Code: 207 s). This is a single video, so treat it as a demonstration, not a ranking.
@@ -133,7 +156,7 @@ Setup, options and the eval commands: [docs/cli.md](docs/cli.md).
 
 ## Learn more
 
-[Benchmark](docs/benchmark.md) · [Fresh benchmark protocol](docs/fresh-bench-protocol.md) · [Eval harness](docs/eval-harness.md) · [Datasets](docs/DATA.md) · [MCP reference](docs/mcp.md) · [CLI](docs/cli.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+[Other agents](docs/agents.md) · [Benchmark](docs/benchmark.md) · [Fresh benchmark protocol](docs/fresh-bench-protocol.md) · [Eval harness](docs/eval-harness.md) · [Datasets](docs/DATA.md) · [MCP reference](docs/mcp.md) · [CLI](docs/cli.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 ## License
 

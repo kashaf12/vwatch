@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **Setup for other agents** in `docs/agents.md`: Codex (checked end to end: it found the same glitches as Claude Code), Gemini CLI, Cursor, VS Code, opencode, Windsurf and Claude Desktop.
+- **The repository is also a Gemini CLI extension:** `gemini extensions install https://github.com/kashaf12/vwatch` gives you the server, the skill and a short context file. Tests keep its pinned version in step with the package.
+
+### Changed
+
+- The README explains how vwatch decides where to look, and what the benchmark numbers mean, in plain language.
+
 ## [0.2.5] - 2026-11-24
 
 ### Fixed
