@@ -190,7 +190,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     _prefetch_ffmpeg()
     from vwatch import mcp_tools
-    mcp_tools.PREFETCH = os.environ.get("VWATCH_PREFETCH", "1") != "0"  # signals + transcript start on first touch
+    mcp_tools.PREFETCH = os.environ.get("VWATCH_PREFETCH", "1") != "0"  # signals + voice check start on first touch
+    # ... and the transcript too, but only when the speech model is already downloaded
+    mcp_tools.PREFETCH_TRANSCRIPT = os.environ.get("VWATCH_PREFETCH_TRANSCRIPT", "1") != "0"
     server.run("stdio")
     return 0
 

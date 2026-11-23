@@ -175,3 +175,24 @@ class TestResegment:
     def test_empty(self):
         from vwatch.transcribe import resegment
         assert resegment(()) == ()
+
+
+class TestModelAvailable:
+    """Checked without network access, so a first-time user never downloads the model by accident."""
+
+    def test_missing_model(self, monkeypatch):
+        import faster_whisper.utils as fu
+
+        def offline(name, local_files_only=False, **_):
+            assert local_files_only
+            raise FileNotFoundError(name)
+        monkeypatch.setattr(fu, "download_model", offline)
+        assert transcribe.model_available("small") is False
+
+    def test_cached_model(self, monkeypatch, tmp_path):
+        import faster_whisper.utils as fu
+        monkeypatch.setattr(fu, "download_model", lambda name, local_files_only=False, **_: str(tmp_path))
+        assert transcribe.model_available("small") is True
+
+    def test_local_model_directory(self, tmp_path):
+        assert transcribe.model_available(str(tmp_path)) is True

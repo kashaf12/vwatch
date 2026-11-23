@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-24
+
+### Fixed
+
+- **No speech-model download unless you ask for words.** In 0.2.4 the background prefetch started a full transcription for every video with sound. A first-time user who only wanted frames therefore downloaded the whisper model (~480 MB) and paid for a transcription they never asked for. The transcript is now prefetched only when the model is already on disk (checked offline); otherwise the first `video_transcript` call downloads it, as documented. The signal track and voice check are still prefetched; the voice-check model ships with the package. `VWATCH_PREFETCH_TRANSCRIPT=0` turns transcript prefetch off entirely.
+
 ## [0.2.4] - 2026-11-23
 
 Long videos, and real footage instead of injected test sets.
@@ -111,7 +117,8 @@ First public release.
 - **Pilot result** (`eval/results/pilot-2026-11-22.md`): verdict ITERATE.
 - `vw` CLI: `watch`, `signals`, `dataset build`, `eval run`, `eval report`.
 
-[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/kashaf12/vwatch/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/kashaf12/vwatch/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/kashaf12/vwatch/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/kashaf12/vwatch/compare/v0.2.1...v0.2.2

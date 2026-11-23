@@ -77,6 +77,19 @@ def file_hash(path: str | Path) -> str:
 _MODEL_CACHE: dict[str, object] = {}
 
 
+def model_available(model_name: str = DEFAULT_WHISPER) -> bool:
+    """True when the whisper model is already on disk (checked offline: never starts a download)."""
+    if model_name in _MODEL_CACHE or os.path.isdir(model_name):
+        return True
+    try:
+        from faster_whisper.utils import download_model
+
+        download_model(model_name, local_files_only=True)
+        return True
+    except Exception:  # noqa: BLE001 - missing, partial or unreadable cache: treat as not available
+        return False
+
+
 def _whisper(model_name: str):
     if model_name not in _MODEL_CACHE:
         from faster_whisper import WhisperModel
