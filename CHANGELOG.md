@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
+### Fixed
+
+- **Audio out of sync on files whose audio stream starts at a different time from the video** (common in WebM/Ogg exports and screen recordings). `media.extract_audio` now pads or trims to the first video frame, so silences, transcript words, loudness and `video_listen` line up with the frames. Before this, a file with audio starting 4 s late reported every audio event 4 s early. Found by the post-release install test on a new video.
+- The T1x builder inherits the fix; see the known issue in `docs/DATA.md` for sets built earlier.
+
 ## [0.2.0] - 2026-11-23
 
 vwatch in your own agent. The head-to-head showed a capable agent steering its own tools beats vwatch's nested watcher loop, so this release gives agents vwatch's perception primitives instead of a second model.
@@ -49,6 +56,7 @@ First public release.
 - **Pilot result** (`eval/results/pilot-2026-11-22.md`): verdict ITERATE.
 - `vw` CLI: `watch`, `signals`, `dataset build`, `eval run`, `eval report`.
 
-[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kashaf12/vwatch/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kashaf12/vwatch/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kashaf12/vwatch/releases/tag/v0.1.0

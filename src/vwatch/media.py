@@ -263,7 +263,26 @@ def extract_audio(path: str | Path, sr: int = 16000) -> np.ndarray:
         return np.zeros(0, dtype=np.float32)
     raw = _run([ffmpeg(), "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sr),
                 "-f", "f32le", "-"])
-    return np.frombuffer(raw, dtype=np.float32).copy()
+    audio = np.frombuffer(raw, dtype=np.float32)
+    # Put sample 0 at the first video frame: some files start their audio stream later (or earlier)
+    # than the video, and every audio timestamp (silences, words, loudness) would be off by that much.
+    shift = int(round(audio_offset(path) * sr))
+    if shift > 0:
+        return np.concatenate([np.zeros(shift, dtype=np.float32), audio])
+    return audio[-shift:].copy()
+
+
+def audio_offset(path: str | Path) -> float:
+    """Seconds from the first video frame to the first audio sample (negative: audio starts first)."""
+    out = _run([ffprobe(), "-v", "error", "-show_entries", "stream=codec_type,start_time", "-of", "json", str(path)])
+    starts: dict[str, float] = {}
+    for st in json.loads(out).get("streams", []):
+        kind, start = st.get("codec_type"), st.get("start_time")
+        if kind in ("video", "audio") and kind not in starts and start not in (None, "N/A"):
+            starts[kind] = float(start)
+    if "video" not in starts or "audio" not in starts:
+        return 0.0
+    return starts["audio"] - starts["video"]
 
 
 def write_video(
