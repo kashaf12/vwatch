@@ -95,7 +95,7 @@ Same model (`claude-opus-5-5`) and the same prompts for every arm, on 40 openly 
 
 <sub>Defect columns: 3 runs each for the plugin, Claude Code and claude-video-vision; *1 run for popcorn and frames.</sub>
 
-- **As accurate as the best, at half the cost and twice the speed.** All F1 gaps between the Claude Code arms are within noise (plugin minus claude-video-vision: −4.0 pp, 95% CI [−11.8, +4.1], bootstrapped over source clips). The plugin finds as many defects as plain Claude Code and more than claude-video-vision; most of its wrong reports are one real edit inside a source lecture that the dataset labels clean. Counting that edit as real for every tool, the plugin scores highest (0.87 vs 0.86 and 0.83), still within noise.
+- **No measurable accuracy difference from the best tools, at half the cost and twice the speed.** All F1 gaps between the Claude Code arms are within noise (plugin minus claude-video-vision: −4.0 pp, 95% CI [−11.8, +4.1], bootstrapped over source clips). The plugin's recall (0.79) is level with plain Claude Code (0.80) and above claude-video-vision (0.76), but its precision is lower (0.86 vs 1.00), so it does not beat claude-video-vision on F1.
 - **Frames alone miss short glitches.** Uniform frames found 1 of 7 flash frames and 0 of 8 audio dropouts; the plugin found all of both in every run.
 - **Not cheaper on very short clips.** On TVBench's 5–30 s clips the skill's fixed setup dominates: $0.48 per video-minute against $0.21 for plain Claude Code.
 

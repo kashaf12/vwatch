@@ -2,7 +2,7 @@
 
 40 held-out T1x videos (`eval/bench/t1x_ids.txt`). VWP = Claude Code + vwatch plugin at v0.2.2 (cell-level freeze detection, digital-silence dropout hint, skill guidance on strong hints), 3 runs (`2026-11-23k_VWP_r1-3`). CC and CVV: 3 runs each (`2026-11-22d_*_r1-3`; r2/r3 added 2026-11-23, they do not use vwatch code). POP and B1: 1 run. Repeats are averaged per video before bootstrapping.
 
-Sensitivity (not the primary result): the `sem` source lecture contains a real edit (2.9 s in `t1x_sem_clean_0`, about 4.95 s in the other sem videos) that the dataset labels clean. Dropping jump-cut reports at that edit for every arm alike gives F1 VWP 0.871, CVV 0.861, POP 0.847, CC 0.832; VWP − CVV +1.0 pp [−7.1, +8.2], VWP − CC +3.9 pp [−6.6, +13.9].
+Note: most of VWP's wrong reports are jump cuts at one moment in the `sem` source lecture that looks like an edit in the original footage. It is scored as labeled (clean). No re-score excluding it is reported, because such a rule would be chosen after seeing the results.
 
 - Model + version: claude-opus-5-5
 - Watcher commit: n/a
