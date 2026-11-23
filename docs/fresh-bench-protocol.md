@@ -83,4 +83,6 @@ word?"
 
 ## Deviations
 
-(none yet)
+1. **2026-11-24, data build:** the first build stopped on the first long video because the freeze injection
+   used one ffmpeg stream twice without a `split` (an ffmpeg error, exit 234). Fixed by adding the split; source
+   selection, injection parameters, seeds and scoring are unchanged. No tool had been run on any fresh item.
