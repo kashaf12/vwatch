@@ -15,13 +15,14 @@ Everything vwatch has measured so far, newest first. How the runs are set up (ar
 <!-- PLUGIN-RESULTS:START -->
 ### Long video spot check (one video, anecdotal)
 
-One 21-minute lecture (CopyrightX 3.1, CC BY), with a 2 s on-screen code word spliced in at 13:07 and a 1 s freeze at 17:40. Same question to each tool: find the code word and any glitches. **This is one video and one run per tool**, so it shows the scaling problem and the fix, not a ranking.
+One 21-minute lecture (CopyrightX 3.1, CC BY), with a 2 s on-screen code word spliced in at 13:07 and a 1 s freeze at 17:40. Same question to each tool: find the code word and any glitches. **This is one video with one or two runs per tool**, so it shows the scaling problem and the fix, not a ranking. Cost varies between runs with how many frames the agent decides to check.
 
 | | Found code word | Found freeze | Wall time | Cost |
 |---|---|---|---|---|
 | Plain Claude Code | yes, 13:07.00 | yes, 17:39.97 | 207 s | $0.85 |
 | Plugin v0.2.3 | yes, 13:07.0 | yes, 17:40.0 | 313 s | $0.71 |
-| Plugin v0.2.4 (performance changes) | yes, 13:07.0 | yes, 17:40.0 | 159 s | $0.56 |
+| Plugin v0.2.4, run 1 (performance commit) | yes, 13:07.0 | yes, 17:40.0 | 159 s | $0.56 |
+| Plugin v0.2.4, run 2 (final code) | yes, 13:07.00 | yes, 17:40.0 | 138 s | $0.71 |
 
 In v0.2.3 the long video exposed engineering bottlenecks, not perception problems:
 - transcription took 169 s;
