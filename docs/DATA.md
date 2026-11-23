@@ -55,6 +55,8 @@ Real, openly licensed videos with speech, in six languages. The builder accepts 
 
 Authors and licenses above are as reported by the Commons API when the set was built. The builder writes the authoritative table (with the exact segment used per file) to `eval/data/SOURCES.md`; check it, and the Commons page, before redistributing any derivative.
 
+**Known issue (sets built before v0.2.1):** the builder dropped each source's audio start offset, so speech in the `linagora` videos runs about 0.94 s ahead of the picture and in `prague` about 0.27 s behind it (`pietra` 0.03 s). The defects and their labels sit on each built file's own timeline, so scoring is unaffected; only lip sync is off. Rebuilding with v0.2.1 or later fixes it but changes those videos, so results from the two builds don't mix.
+
 ## T1: bring your own videos
 
 T1 uses the maintainer's own Shorts, which are not redistributed. The pilot report names them by source id only (`dosa-reel-DEMO`, `dosa-demo-stick-story`, `dosa-stall-bengaluru-*`).

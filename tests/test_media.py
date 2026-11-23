@@ -1,3 +1,6 @@
+import subprocess
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -129,6 +132,50 @@ class TestAudio:
     def test_without_audio(self, silent_video):
         a = media.extract_audio(silent_video)
         assert a.size == 0 and a.dtype == np.float32
+
+
+def _onset(a: np.ndarray, sr: int) -> float:
+    """Time of the first sample louder than half the peak."""
+    return float(np.argmax(np.abs(a) > 0.5 * np.abs(a).max())) / sr
+
+
+@pytest.fixture(scope="module")
+def late_tone(tmp_path_factory):
+    """4 s video; its audio is silent for 0.5 s, then a tone. Returns (writer, dir)."""
+    d = tmp_path_factory.mktemp("offset")
+    sr = 16000
+    t = np.arange(4 * sr) / sr
+    audio = (0.3 * np.sin(2 * np.pi * 440 * t) * (t >= 0.5)).astype(np.float32)
+    frames = np.zeros((120, 64, 64, 3), dtype=np.uint8)
+    src = media.write_video(frames, 30, d / "src.mp4", audio=audio, sr=sr)
+
+    def shifted(name: str, audio_shift: float) -> Path:
+        out = d / name
+        a_in = ["-itsoffset", str(audio_shift)] if audio_shift > 0 else []
+        v_in = ["-itsoffset", str(-audio_shift)] if audio_shift < 0 else []
+        subprocess.run([media.ffmpeg(), "-v", "error", "-y", *v_in, "-i", str(src), *a_in, "-i", str(src),
+                        "-map", "0:v", "-map", "1:a", "-c", "copy", str(out)], check=True)
+        return out
+
+    return shifted
+
+
+class TestAudioTimeline:
+    """Audio samples line up with the video's clock even when the audio stream starts at another time."""
+
+    def test_audio_starting_late_is_padded(self, late_tone):
+        path = late_tone("late.mp4", 1.0)  # audio stream starts 1 s after the first frame
+        a = media.extract_audio(path, sr=16000)
+        assert _onset(a, 16000) == pytest.approx(1.5, abs=0.05)
+
+    def test_audio_starting_early_is_trimmed(self, late_tone):
+        path = late_tone("early.mp4", -0.3)  # video starts 0.3 s after the audio
+        a = media.extract_audio(path, sr=16000)
+        assert _onset(a, 16000) == pytest.approx(0.2, abs=0.05)
+
+    def test_aligned_audio_is_unchanged(self, late_tone):
+        a = media.extract_audio(late_tone("aligned.mp4", 0.0), sr=16000)
+        assert _onset(a, 16000) == pytest.approx(0.5, abs=0.05)
 
 
 class TestWriteVideo:
