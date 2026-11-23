@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vwatch.media import FFMPEG, MediaError
+from vwatch.media import MediaError, ffmpeg
 
 
 def write_video_stream(
@@ -27,7 +27,7 @@ def write_video_stream(
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     w, h = size
-    cmd = [FFMPEG, "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+    cmd = [ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
            "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-"]
     tmp_wav: Path | None = None
     if audio is not None and audio.size:

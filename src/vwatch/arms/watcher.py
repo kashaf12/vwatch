@@ -26,13 +26,14 @@ from vwatch.arms.common import (RECOVERABLE, ArmResult, Conversation, Evidence, 
 from vwatch.imaging import Box
 from vwatch.llm.base import Backend, extract_json, text_block
 from vwatch.schemas import Arm, Task
+from vwatch import signals
 from vwatch.signals import Candidate
 
 SYSTEM = ("You watch videos the way an attentive person does: decide what you are looking for, skim, "
           "notice where your expectations break, and look closely there. You only see what you ask "
           "for, so ask for what you need. Be precise about times. When asked for JSON, reply with JSON only.")
 
-SIGNAL_KINDS = ("flash", "freeze", "jump_cut", "cut", "cut_in_speech", "silence_in_speech", "local_change")
+SIGNAL_KINDS = signals.KINDS
 MAX_ACTION_ROUNDS = 3
 MAX_ACTIONS_PER_ROUND = 6
 FOCUS_SHARE = 0.7  # share of the budget the harness may spend before the model's own requests

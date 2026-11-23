@@ -41,7 +41,7 @@ def decode_small(path: Path, info: media.VideoInfo, step: int = 4) -> np.ndarray
     w, h = info.width, info.height
     h4, w4 = h // step, w // step
     out: list[np.ndarray] = []
-    proc = subprocess.Popen([media.FFMPEG, "-v", "error", "-i", str(path), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+    proc = subprocess.Popen([media.ffmpeg(), "-v", "error", "-i", str(path), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                             stdout=subprocess.PIPE)
     assert proc.stdout is not None
     nbytes = w * h * 3

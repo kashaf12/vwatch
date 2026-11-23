@@ -40,6 +40,7 @@ class Arm(StrEnum):
     CC = "CC"  # plain Claude Code agent with Bash + Read: extracts frames itself (how CC watches today)
     CVV = "CVV"  # Claude Code + the claude-video-vision plugin (third party)
     POP = "POP"  # Claude Code + the popcorn MCP server (third party)
+    VWP = "VWP"  # Claude Code + the vwatch plugin (our MCP tools + watch-video skill)
 
 
 # ---------------------------------------------------------------- ground truth

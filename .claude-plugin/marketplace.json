@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "vwatch",
+  "description": "vwatch: video tools for your agent (frame grids, crops, transcript, loudness, model-free signal hints) plus a skill that teaches how to watch a video like a person.",
+  "owner": {
+    "name": "kashaf12",
+    "url": "https://github.com/kashaf12"
+  },
+  "plugins": [
+    {
+      "name": "vwatch",
+      "source": "./plugins/vwatch",
+      "description": "Give your agent eyes and ears for local video files: MCP tools for timestamped frame grids, dense seeks, crops, transcript, loudness and model-free signal hints, plus the watch-video skill. No model calls, no API key.",
+      "category": "productivity",
+      "homepage": "https://github.com/kashaf12/vwatch",
+      "author": {
+        "name": "kashaf12",
+        "url": "https://github.com/kashaf12"
+      },
+      "tags": ["video", "mcp", "multimodal", "ffmpeg", "whisper", "qa", "perception"]
+    }
+  ]
+}

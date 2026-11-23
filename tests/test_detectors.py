@@ -1,3 +1,5 @@
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -136,9 +138,31 @@ class TestFreeze:
         diff, _ = held()
         assert len(detectors.detect_freezes(track(diff))) == 1
 
-    def test_needs_sound(self):
-        diff, cells = held()
+    def test_silent_clip_gentle_restart_is_not_a_freeze(self):
+        # Changed with the owner's approval (2026-11-23): a fully silent clip no longer rules freezes
+        # out entirely, but a hold that ends gently is still a natural pause.
+        diff, cells = held(resume=0.6)
         assert detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0))) == []
+
+    def test_silent_clip_catch_up_is_a_freeze(self):
+        diff, cells = held()
+        out = detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0)))
+        assert len(out) == 1 and out[0].score == 0.9 and "without sound" in out[0].note
+
+    def test_silent_clip_hold_then_cut_is_reported_low(self):
+        # A catch-up far into a fast shot looks like a new scene; reported low for the agent to check.
+        diff, cells = held(resume=40.0)
+        frames = np.zeros((150, 4, 4), np.uint8)
+        frames[90:] = 200  # the picture after the hold looks like another shot
+        t = dataclasses.replace(track(diff, cell_max=cells, rms_db=np.full(250, -90.0)), frames=frames)
+        out = detectors.detect_freezes(t)
+        assert [c.score for c in out] == [0.55] and "scene cut" in out[0].note
+
+    def test_silent_clip_still_shot_then_cut_is_not_a_freeze(self):
+        diff, cells = held(resume=40.0)
+        diff[1:60] = 0.02  # the held shot never moved before the hold
+        out = detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0)))
+        assert out == []
 
     def test_quiet_sound_still_counts(self):
         diff, cells = held()
@@ -280,3 +304,36 @@ class TestEncoded:
     def test_clean_video_has_neither(self, edited_videos):
         cands = signals.find_candidates(signals.compute(edited_videos[2]))
         assert not [c for c in cands if c.kind in ("jump_cut", "freeze")]
+
+
+class TestSilentAndCadenceFreezes:
+    """Freezes in silent clips and in repeated-frame (low-fps upsampled) sources."""
+
+    def test_has_dup_cadence_detects_alternating_duplicates(self):
+        import numpy as np
+        from vwatch import detectors as D
+
+        alt = np.array([0.0] + [5.0, 0.0] * 50)
+        smooth = np.array([0.0] + [5.0] * 100)
+        assert D.has_dup_cadence(alt, D.STILL_DIFF, D.MOTION_MIN)
+        assert not D.has_dup_cadence(smooth, D.STILL_DIFF, D.MOTION_MIN)
+
+    def test_cadence_motion_ignores_duplicates(self):
+        import numpy as np
+        from vwatch import detectors as D
+
+        alt = np.array([6.0, 0.0] * 8)
+        assert D.plain_motion(alt) < 3.5 and D.cadence_motion(alt) == 6.0
+        assert D.cadence_motion(np.array([])) == 0.0 and D.cadence_motion(np.array([2.0])) == 2.0
+
+    def test_same_shot(self):
+        import numpy as np
+        from vwatch import detectors as D
+
+        rng = np.random.default_rng(0)
+        a = rng.integers(0, 120, (32, 32), dtype=np.uint8)
+        moved = np.roll(a, 3, axis=1)
+        other = rng.integers(140, 255, (32, 32), dtype=np.uint8)
+        assert D.same_shot(a, moved) and not D.same_shot(a, other)
+        flat = np.full((8, 8), 10, dtype=np.uint8)
+        assert D.same_shot(flat, flat.copy())

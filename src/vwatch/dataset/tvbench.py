@@ -31,6 +31,7 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
+from vwatch import media
 from vwatch.schemas import DatasetItem, MCQItem, MCQTruth, Task
 
 REPO = "FunAILab/TVBench"
@@ -239,7 +240,7 @@ def truth_for(video_id: str, clip: Clip, duration: float) -> MCQTruth:
 
 
 def probe_duration(path: Path) -> float:
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+    out = subprocess.run([media.ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
                          check=True, capture_output=True, text=True).stdout
     return float(out.strip())
 
@@ -250,7 +251,7 @@ _SCALE = ("scale=w='min(iw,if(gt(iw,ih),1280,720))':h='min(ih,if(gt(iw,ih),720,1
 
 
 def convert(src: Path, dst: Path, start: float | None = None, end: float | None = None) -> None:
-    cmd = ["ffmpeg", "-y", "-v", "error"]
+    cmd = [media.ffmpeg(), "-y", "-v", "error"]
     if start is not None and end is not None:
         cmd += ["-ss", f"{start:.3f}", "-t", f"{end - start:.3f}"]
     cmd += ["-i", str(src), "-map", "0:v:0", "-map", "0:a:0?", "-vf", _SCALE, "-c:v", "libx264", "-crf", "23",

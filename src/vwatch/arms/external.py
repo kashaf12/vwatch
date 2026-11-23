@@ -3,6 +3,7 @@
 CC   plain headless Claude Code (its normal system prompt) with Bash (read-only media commands) + Read.
 CVV  CC + the claude-video-vision plugin (jordanrendric/claude-video-vision), loaded with --plugin-dir.
 POP  CC + the popcorn MCP server (haithamelmengad/popcorn), attached with --mcp-config.
+VWP  CC + the vwatch plugin from this repo (plugins/vwatch: MCP tools + watch-video skill), run from the checkout.
 
 Each run: a fresh temp dir outside the repo holding only `video.mp4` (neutral name: dataset names
 encode the defect), `claude -p` with cwd there, no user settings / CLAUDE.md / hooks / plugins / MCP
@@ -40,7 +41,7 @@ from vwatch.tasks import REPAIR_PROMPT, parse_report
 log = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EXTERNAL_ARMS = (Arm.CC, Arm.CVV, Arm.POP)
+EXTERNAL_ARMS = (Arm.CC, Arm.CVV, Arm.POP, Arm.VWP)
 DEFAULT_TIMEOUT_S = 900.0
 PINS = {
     "claude-video-vision": "4a4f99016f249a24018cd19b66531ebbcd58024b",  # v1.4.0
@@ -53,6 +54,9 @@ BASH_COMMANDS = ("ffmpeg", "ffprobe", "python3", "python", "ls", "mkdir", "cd", 
                  "head", "tail", "wc", "sort", "uniq", "cut", "tr", "grep", "bc", "file", "stat", "du")
 CVV_MCP = "mcp__claude-video-vision"
 POP_MCP = "mcp__popcorn"
+# Named like the plugin-provided server so the plugin's /vwatch:watch allowed-tools match unchanged.
+VWP_SERVER = "plugin_vwatch_vwatch"
+VWP_MCP = f"mcp__{VWP_SERVER}"
 CVV_WHISPER_MODEL = "small"  # same size as our own transcriber; the wizard's "auto" would pick by RAM
 _ENV_KEEP = ("HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "PATH", "CLAUDE_CONFIG_DIR")
 _SANDBOX_NOTE = ("Sandbox: keep every file you create inside the current directory. Shell commands allowed here: "
@@ -182,6 +186,27 @@ def setup_pop(cfg: ExternalConfig, dirs: RunDirs, env: Mapping[str, str]) -> lis
     return ["--mcp-config", str(conf)]
 
 
+def setup_vwp(cfg: ExternalConfig, dirs: RunDirs, env: Mapping[str, str], repo_root: Path = REPO_ROOT) -> list[str]:
+    """Per-run copy of this repo's plugin; its MCP server runs from the local checkout (not the release tag)."""
+    src = _need(repo_root / "plugins" / "vwatch", "vwatch plugin directory")
+    plugin = dirs.root / "plugin"
+    shutil.copytree(src, plugin)
+    (plugin / ".mcp.json").write_text("{}")
+    manifest = plugin / ".claude-plugin" / "plugin.json"
+    data = json.loads(manifest.read_text())
+    data.pop("mcpServers", None)  # attached below; --strict-mcp-config drops plugin-declared servers anyway
+    manifest.write_text(json.dumps(data, indent=2))
+    uv = shutil.which("uv", path=env.get("PATH"))
+    if not uv:
+        raise SetupError("uv not found on PATH (needed to run the vwatch MCP server from the checkout)")
+    server_env = {"TMPDIR": str(dirs.root / "tmp")}
+    conf = dirs.root / "mcp.json"
+    conf.write_text(json.dumps({"mcpServers": {VWP_SERVER: {
+        "command": uv, "args": ["run", "--project", str(repo_root), "--extra", "mcp", "vwatch-mcp"],
+        "env": server_env}}}, indent=2))
+    return ["--plugin-dir", str(plugin), "--mcp-config", str(conf)]
+
+
 # ---------------------------------------------------------------- command and prompt
 
 
@@ -192,11 +217,13 @@ def allowed_tools(arm: Arm) -> tuple[str, ...]:
         return base + ("Skill", CVV_MCP)
     if arm is Arm.POP:
         return base + (POP_MCP,)
+    if arm is Arm.VWP:
+        return base + ("Skill", VWP_MCP)
     return base
 
 
 def builtin_tools(arm: Arm) -> str:
-    return "Bash,Read,Skill" if arm is Arm.CVV else "Bash,Read"
+    return "Bash,Read,Skill" if arm in (Arm.CVV, Arm.VWP) else "Bash,Read"
 
 
 def build_command(arm: Arm, cfg: ExternalConfig, binary: str, extra: list[str]) -> list[str]:
@@ -215,6 +242,8 @@ def agent_prompt(arm: Arm, task_text: str) -> str:
         return f"/claude-video-vision:watch-video ./video.mp4 {task_text}\n\n{_SANDBOX_NOTE}"
     if arm is Arm.POP:
         return f"The video is ./video.mp4. Use the popcorn MCP tools to watch it.\n{task_text}\n\n{_SANDBOX_NOTE}"
+    if arm is Arm.VWP:
+        return f"/vwatch:watch ./video.mp4 {task_text}\n\n{_SANDBOX_NOTE}"
     return f"The video is ./video.mp4. {task_text}\n\n{_SANDBOX_NOTE}"
 
 
@@ -274,7 +303,8 @@ def _cleanup(root: Path) -> None:
 def _launch(arm: Arm, cfg: ExternalConfig, dirs: RunDirs, task: Task, prompt: str,
             box: list[AgentProcess]) -> tuple[list[dict], str, dict | None, str | None]:
     env = agent_env(cfg.base_env)
-    extra = setup_cvv(cfg, dirs, env) if arm is Arm.CVV else setup_pop(cfg, dirs, env) if arm is Arm.POP else []
+    setups = {Arm.CVV: setup_cvv, Arm.POP: setup_pop, Arm.VWP: setup_vwp}
+    extra = setups[arm](cfg, dirs, env) if arm in setups else []
     cmd = build_command(arm, cfg, cfg.binary or find_claude_binary(), extra)
     box.append(AgentProcess.start(cmd, cwd=str(dirs.work), env=env, timeout_s=cfg.timeout_s))
     return _converse(box[0], task, agent_prompt(arm, prompt))
