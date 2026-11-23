@@ -206,6 +206,25 @@ class TestSilence:
         assert signals.detect_silences(t)[0].score == 0.9
 
 
+class TestDigitalSilence:
+    """Exact zero mid-speech in a recording that otherwise keeps room tone is the dropout signature."""
+
+    def test_zero_gap_in_room_tone_clip_scores_high(self):
+        db = np.concatenate([np.full(50, -20.0), np.full(20, -120.0), np.full(200, -20.0)])
+        db[100:110] = -70.0  # a natural pause keeps room tone
+        out = signals.detect_silences(make_track(flat(60), rms_db=db))
+        zero = [c for c in out if c.t0 == pytest.approx(1.0)]
+        assert zero and zero[0].score == 0.9 and "exact digital silence" in zero[0].note
+
+    def test_zero_gaps_everywhere_keep_the_normal_score(self):
+        # synthetic narration: every pause is exact zero, so zero is not unusual here
+        chunk = np.concatenate([np.full(30, -20.0), np.full(20, -120.0)])
+        db = np.concatenate([np.tile(chunk, 6), np.full(30, -20.0)])
+        out = signals.detect_silences(make_track(flat(60), rms_db=db))
+        assert out and all(c.score == pytest.approx(0.6) for c in out)
+        assert "every pause" in out[0].note
+
+
 class TestLocalChange:
     def test_run_detected(self):
         t = make_track(flat(30))

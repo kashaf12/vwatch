@@ -185,6 +185,58 @@ class TestFreeze:
         assert detectors.detect_freezes(track([0.0, 0.0])) == []
 
 
+class TestCellHolds:
+    """Holds seen at mid resolution: a talking head whose 64 px average barely moves, but whose cells do."""
+
+    @staticmethod
+    def head(resume=3.0, hold_cell=0.01, around_cell=1.5, around_diff=0.1, n=150, a=60, b=90):
+        diff = np.full(n, around_diff, np.float32)
+        diff[0] = 0
+        diff[a:b] = 0.0
+        diff[b] = resume
+        cells = np.full(n, around_cell, np.float32)
+        cells[a:b] = hold_cell
+        return diff, cells
+
+    def test_low_motion_talking_head_catch_up_is_found(self):
+        diff, cells = self.head()
+        out = detectors.detect_freezes(track(diff, cell_max=cells))
+        assert len(out) == 1 and out[0].score == 0.9
+        assert out[0].t0 == pytest.approx(2.0) and out[0].t1 == pytest.approx(3.0)
+
+    def test_exact_long_hold_with_gentle_restart_is_reported_lower(self):
+        diff, cells = self.head(resume=0.1, b=100)  # 1.33 s, nothing jumps when it resumes
+        out = detectors.detect_freezes(track(diff, cell_max=cells))
+        assert [c.score for c in out] == [0.6] and "every cell" in out[0].note
+
+    def test_short_exact_hold_with_gentle_restart_is_a_pause(self):
+        diff, cells = self.head(resume=0.1, b=80)  # 0.67 s
+        assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
+
+    def test_moving_cells_inside_the_hold_are_not_a_freeze(self):
+        diff, cells = self.head(hold_cell=0.2)  # lips still move at mid resolution
+        assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
+
+    def test_still_slide_is_not_a_freeze(self):
+        diff, cells = self.head(around_cell=0.3)  # nothing moves around the hold either
+        assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
+
+    def test_needs_speech_during_the_hold(self):
+        diff, cells = self.head()
+        rms = np.full(250, -20.0)
+        rms[100:150] = -90.0  # the hold (2.0-3.0 s, 20 ms hops) is a quiet gap in an otherwise loud clip
+        assert detectors.detect_freezes(track(diff, cell_max=cells, rms_db=rms)) == []
+
+    def test_silent_clip_has_no_cell_holds(self):
+        diff, cells = self.head()
+        assert detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0))) == []
+
+    def test_not_reported_twice(self):
+        diff, cells = held()  # the classic case: both passes see it
+        out = detectors.detect_freezes(track(diff, cell_max=cells))
+        assert len(out) == 1
+
+
 # ------------------------------------------------------------------ jump cut
 
 

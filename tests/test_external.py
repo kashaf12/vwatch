@@ -403,6 +403,21 @@ class TestAuditInlineCode:
     def test_bare_root_in_shell_is_still_flagged(self):
         assert self._flags("grep -r secret /")
 
+    def test_bitwise_not_in_heredoc_is_clean(self):
+        assert self._flags("cat > qa/an.py <<'EOF'\nimport numpy as np\nm = d > 1\nprint((~m).sum())\nEOF") == ()
+
+    def test_home_dir_in_heredoc_is_still_flagged(self):
+        assert self._flags("cat > a.py <<'EOF'\nopen('~/.ssh/id_rsa')\nEOF")
+
+    def test_home_dir_in_shell_is_still_flagged(self):
+        assert self._flags("ls ~")
+
+    def test_sed_substitution_is_not_a_path(self):
+        assert self._flags("ffmpeg -i video.mp4 -f null - 2>&1 | sed 's/frame:[0-9]*//g; s/lavfi.scene_score=/s=/g'") == ()
+
+    def test_stdin_device_is_allowed(self):
+        assert self._flags("python3 -c \"exec(open('/dev/stdin').read())\" < /dev/null") == ()
+
 
 class TestVwatchPluginArm:
     """VWP = Claude Code + this repo's plugin; server named like the plugin-provided one."""

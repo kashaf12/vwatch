@@ -16,13 +16,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 FORBIDDEN_MARKERS: tuple[str, ...] = ("truth", "eval/data", "manifest")
-ALLOWED_SYSTEM_PATHS: tuple[str, ...] = ("/dev/null", "/dev/stdout", "/dev/stderr", "/dev/zero")
+ALLOWED_SYSTEM_PATHS: tuple[str, ...] = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/zero")
 _SKIP_KEYS = frozenset({"description"})  # free-text explanation fields, not paths
 _ABS_PATH = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))(/[A-Za-z0-9._~\-][^\s'"|;&<>(),]*)""")
 _FS_ROOT = re.compile(r"""(?:^|(?<=[\s'"=]))/(?=$|[\s'"|;&<>)])""")  # a bare "/" (e.g. grep -r x /)
 _QUOTED_ROOT = re.compile(r"""['"]/['"]""")  # "/" as a string literal inside inline code
 _INLINE_CODE = re.compile(r"\bpython3?\b[^\n]*?\s-c\b|<<")  # python -c "..." or a heredoc
 _HOME_PATH = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))(~[^\s'"|;&<>(),]*)""")
+_CODE_HOME_PATH = re.compile(r"""(~[A-Za-z0-9._\-]*/[^\s'"|;&<>(),]*)""")  # in code, `~x` is bitwise not; only ~/ or ~user/ is a path
+_SED_SUBST = re.compile(r"""(?<![A-Za-z0-9_])s([/|#])(?:\\.|(?!\1).)*\1(?:\\.|(?!\1).)*\1[gimpI0-9]*""")  # sed s/a/b/g
 _PARENT = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))(\.\.(?:/[^\s'"|;&<>(),]*)?)(?=$|[\s'"|;&<>(),])""")
 _REL_WITH_PARENT = re.compile(r"""(?:^|(?<=[\s'"=:,(<>|]))([A-Za-z0-9._\-][^\s'"|;&<>(),]*/\.\.(?:/[^\s'"|;&<>(),]*)?)""")
 
@@ -114,7 +116,7 @@ def _path_problems(text: str, workdir: Path, roots: tuple[str, ...], *, code: bo
             found.append(f"path outside workdir: {p}")
     if (_QUOTED_ROOT if code else _FS_ROOT).search(text):
         found.append("path outside workdir: /")
-    for m in _HOME_PATH.finditer(text):
+    for m in (_CODE_HOME_PATH if code else _HOME_PATH).finditer(text):
         found.append(f"home path: {m.group(1)}")
     for rx in (_PARENT, _REL_WITH_PARENT):
         for m in rx.finditer(text):
@@ -131,6 +133,7 @@ def _bash_problems(command: str, cwd: Path, roots: tuple[str, ...]) -> tuple[lis
     between Claude Code Bash calls). Returns the problems and the cwd after the command."""
     found: list[str] = []
     code = bool(_INLINE_CODE.search(command))
+    command = _SED_SUBST.sub("s///", command)  # sed/perl substitutions hold patterns, not paths (and may contain ;)
     for seg in _SHELL_SEGMENTS.split(command):
         found += _path_problems(seg, cwd, roots, code=code)
         try:

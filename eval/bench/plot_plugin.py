@@ -1,5 +1,5 @@
-"""Plugin head-to-head chart for the README (numbers copied from eval/results/bench-plugin-2026-11-23.md
-and bench-plugin-tvbench-2026-11-23.md)."""
+"""Plugin head-to-head chart for the README (numbers copied from eval/results/bench-plugin-3runs-2026-11-23.md,
+bench-plugin-2026-11-23.md and bench-plugin-tvbench-2026-11-23.md)."""
 import matplotlib
 
 matplotlib.use("Agg")
@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 ARMS = ["Claude Code + vwatch plugin", "Claude Code", "claude-video-vision", "popcorn", "vwatch loop (v0.2)",
         "frames + transcript"]
-F1 = [0.80, 0.86, 0.85, 0.85, 0.79, 0.37]
-COST = [0.18, 0.30, 0.37, 0.46, 0.28, 0.28]       # $ per video-minute, defect set
-WALL = [34, 66, 61, 102, 36, 8]                   # wall seconds per video-minute, defect set
+F1 = [0.82, 0.83, 0.86, 0.85, 0.79, 0.37]  # 3 runs for plugin, CC, CVV; 1 for the rest
+COST = [0.17, 0.30, 0.39, 0.46, 0.28, 0.28]       # $ per video-minute, defect set
+WALL = [32, 66, 61, 102, 36, 8]                   # wall seconds per video-minute, defect set
 TVB = [0.78, 0.72, 0.81, 0.75, 0.69, 0.81]        # TVBench subset, 36 questions
 COLORS = ["#1f5fae", "#8a96a6", "#8a96a6", "#8a96a6", "#6f9bd1", "#c9d1db"]
 

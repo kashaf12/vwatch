@@ -8,6 +8,7 @@ Sets:
   dev    t1x_* videos NOT in eval/bench/t1x_ids.txt (tuning set)
   bench  the 40 held-out t1x ids of the head-to-head benchmark (report once, never tune on it)
   t1     the original t1_* videos (extra dev set)
+  fdev   fresh frozen-frame injections into the T1x sources (eval/bench/make_freeze_dev.py; tuning set)
 
 Usage:
   uv run python eval/bench/eval_signals.py dev [--json out.json] [--workers 8]
@@ -53,7 +54,11 @@ def select(which: str) -> list[dict]:
         return [m for m in items if m["video_id"] in bench]
     if which == "t1":
         return [m for m in items if m["video_id"].startswith("t1_")]
-    raise SystemExit(f"unknown set {which!r} (dev | bench | t1)")
+    if which == "fdev":
+        return [{"video_id": p.stem, "video_path": f"fdev/t1/{p.name}", "truth_path": f"fdev/t1/{p.stem}.truth.json",
+                 "bucket": "clean" if "_clean_" in p.stem else "frozen_frame"}
+                for p in sorted((DATA / "fdev" / "t1").glob("*.mp4"))]
+    raise SystemExit(f"unknown set {which!r} (dev | bench | t1 | fdev)")
 
 
 def run_one(item: dict) -> dict:
@@ -141,7 +146,7 @@ def compare(before: dict, after: dict) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("set", nargs="?", choices=("dev", "bench", "t1"))
+    ap.add_argument("set", nargs="?", choices=("dev", "bench", "t1", "fdev"))
     ap.add_argument("--json", type=Path, help="write raw per-video rows + scores here")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--compare", nargs=2, type=Path, metavar=("BEFORE", "AFTER"))
@@ -151,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         print(compare(b, f))
         return 0
     if not a.set:
-        ap.error("give a set (dev | bench | t1) or --compare")
+        ap.error("give a set (dev | bench | t1 | fdev) or --compare")
     items = select(a.set)
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(run_one, items))
