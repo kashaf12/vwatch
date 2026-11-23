@@ -52,6 +52,11 @@ dev = ["pytest>=8", "pytest-cov>=5", "mcp>=2.3,<3"]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# Rebuild a local install (e.g. VWATCH_SPEC='vwatch[mcp] @ file:///path') when the code changes,
+# not only when pyproject.toml does; otherwise uvx keeps serving a stale cached build.
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.py" }]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/vwatch"]
 
