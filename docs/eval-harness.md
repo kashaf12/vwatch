@@ -157,7 +157,7 @@ If you use vwatch or its eval harness, please cite it. GitHub's "Cite this repos
   author  = {kashaf12},
   title   = {vwatch: an agent toolkit that watches video like a person},
   year    = {2026},
-  version = {0.2.3},
+  version = {0.2.4},
   url     = {https://github.com/kashaf12/vwatch},
   license = {MIT}
 }

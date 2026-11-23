@@ -11,6 +11,7 @@ The host agent does the thinking. Needs the `mcp` extra: `pip install 'vwatch[mc
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 from collections.abc import Callable
@@ -188,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: the MCP server needs the 'mcp' extra: pip install 'vwatch[mcp]' ({exc})", file=sys.stderr)
         return 1
     _prefetch_ffmpeg()
+    from vwatch import mcp_tools
+    mcp_tools.PREFETCH = os.environ.get("VWATCH_PREFETCH", "1") != "0"  # signals + transcript start on first touch
     server.run("stdio")
     return 0
 

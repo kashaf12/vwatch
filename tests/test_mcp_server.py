@@ -569,3 +569,58 @@ class TestLauncher:
         proc, got = self.run(tmp_path, ["--from", "x", "vwatch-mcp"], VWATCH_UV_INSTALL="0")
         assert proc.returncode == 127 and got is None
         assert proc.stdout == "" and "could not find or install uv" in proc.stderr
+
+
+class TestConcurrencyAndPrefetch:
+    """Parallel tool calls share one computation and never drop each other's results; the server prefetches."""
+
+    @staticmethod
+    def slow_track(monkeypatch, calls, delay=0.3):
+        import time
+        real = mt.signals.compute
+
+        def fake(path):
+            calls.append(str(path))
+            time.sleep(delay)
+            return real(path)
+        monkeypatch.setattr(mt.signals, "compute", fake)
+
+    def test_parallel_signal_calls_compute_once(self, tone_video, monkeypatch):
+        from concurrent.futures import ThreadPoolExecutor
+        calls = []
+        self.slow_track(monkeypatch, calls)
+        with ThreadPoolExecutor(3) as ex:
+            outs = list(ex.map(lambda _: mt.video_signals(str(tone_video)), range(3)))
+        assert len(calls) == 1 and len({o[0]["text"] for o in outs}) == 1
+
+    def test_parallel_info_does_not_drop_the_track(self, tone_video, monkeypatch):
+        from concurrent.futures import ThreadPoolExecutor
+        import time
+        calls = []
+        self.slow_track(monkeypatch, calls, delay=0.1)
+        monkeypatch.setattr(mt, "_speech_seconds", lambda p: time.sleep(0.4) or 1.0)  # finishes after the track
+        with ThreadPoolExecutor(2) as ex:
+            a = ex.submit(mt.video_info, str(tone_video))
+            b = ex.submit(mt.video_signals, str(tone_video))
+            a.result(), b.result()
+        mt.video_signals(str(tone_video))
+        assert len(calls) == 1  # the info call's late update kept the track
+
+    def test_prefetch_starts_track_and_transcript(self, tone_video, monkeypatch, fake_whisper):
+        calls = []
+        self.slow_track(monkeypatch, calls, delay=0.05)
+        monkeypatch.setattr(mt, "_speech_seconds", lambda p: 1.0)
+        monkeypatch.setattr(mt, "PREFETCH", True)
+        mt.video_info(str(tone_video))
+        mt.wait_prefetch(timeout=10)
+        mt.video_signals(str(tone_video))
+        mt.video_transcript(str(tone_video))
+        assert len(calls) == 1 and len(fake_whisper) == 1
+
+    def test_no_prefetch_by_default(self, tone_video, monkeypatch, fake_whisper):
+        calls = []
+        self.slow_track(monkeypatch, calls, delay=0.0)
+        monkeypatch.setattr(mt, "_speech_seconds", lambda p: 1.0)
+        mt.video_info(str(tone_video))
+        mt.wait_prefetch(timeout=1)
+        assert calls == [] and fake_whisper == []

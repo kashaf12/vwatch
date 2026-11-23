@@ -13,6 +13,9 @@ from vwatch.imaging import fmt_time
 
 CACHE_DIR = Path(os.environ.get("VWATCH_CACHE", Path.home() / ".cache" / "vwatch")) / "transcripts"
 DEFAULT_WHISPER = os.environ.get("VWATCH_WHISPER_MODEL", "small")
+BATCH = int(os.environ.get("VWATCH_WHISPER_BATCH", "8"))  # batched decoding (~2x faster); 0 = one window at a time
+SEG_MAX_S = 12.0  # rebuilt segments: at most this long ...
+SEG_PAUSE_S = 0.8  # ... and split at pauses this long or at sentence ends
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,35 @@ def _whisper(model_name: str):
     return _MODEL_CACHE[model_name]
 
 
+def resegment(words: tuple[Word, ...]) -> tuple[Segment, ...]:
+    """Sentence-sized segments from word times: split at sentence ends, pauses and SEG_MAX_S."""
+    out: list[Segment] = []
+    cur: list[Word] = []
+    for w in words:
+        if cur and (w.t0 - cur[-1].t1 >= SEG_PAUSE_S or w.t1 - cur[0].t0 > SEG_MAX_S):
+            out.append(Segment(cur[0].t0, cur[-1].t1, "".join(x.text for x in cur)))
+            cur = []
+        cur.append(w)
+        if w.text.rstrip().endswith((".", "?", "!", "。", "？", "！", "।")):
+            out.append(Segment(cur[0].t0, cur[-1].t1, "".join(x.text for x in cur)))
+            cur = []
+    if cur:
+        out.append(Segment(cur[0].t0, cur[-1].t1, "".join(x.text for x in cur)))
+    return tuple(out)
+
+
+def _decode(model, audio, language: str | None):
+    """(segments iterator, info, batched?) with batched decoding for real faster-whisper models."""
+    from faster_whisper import BatchedInferencePipeline, WhisperModel
+
+    if BATCH > 0 and isinstance(model, WhisperModel):
+        pipe = BatchedInferencePipeline(model=model)
+        segs, info = pipe.transcribe(audio, word_timestamps=True, beam_size=5, language=language, batch_size=BATCH)
+        return segs, info, True
+    segs, info = model.transcribe(audio, word_timestamps=True, vad_filter=True, beam_size=5, language=language)
+    return segs, info, False
+
+
 def transcribe(path: str | Path, *, model_name: str = DEFAULT_WHISPER, language: str | None = None,
                cache_dir: Path = CACHE_DIR) -> Transcript:
     key = f"{file_hash(path)}-{model_name}-{language or 'auto'}"
@@ -103,13 +135,14 @@ def transcribe(path: str | Path, *, model_name: str = DEFAULT_WHISPER, language:
         result = EMPTY
     else:
         model = _whisper(model_name)
-        segs, info = model.transcribe(audio, word_timestamps=True, vad_filter=True, beam_size=5,
-                                     language=language)
+        segs, info, batched = _decode(model, audio, language)
         segments, words = [], []
         for s in segs:
             segments.append(Segment(round(s.start, 2), round(s.end, 2), s.text))
             for w in s.words or []:
                 words.append(Word(round(w.start, 2), round(w.end, 2), w.word))
+        if batched and words:  # batched windows are ~30 s long: rebuild readable segments
+            segments = list(resegment(tuple(words)))
         result = Transcript(language=info.language, segments=tuple(segments), words=tuple(words))
     cache_dir.mkdir(parents=True, exist_ok=True)
     cached.write_text(json.dumps(result.to_json(), ensure_ascii=False))
