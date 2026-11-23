@@ -5,6 +5,7 @@ positions than the benchmark build, plus one clean copy per source, under eval/d
 The 40 benchmark ids in eval/bench/t1x_ids.txt are never read or written here.
 
   uv run python eval/bench/make_freeze_dev.py [--seed 1001] [--per-source 6]
+  uv run python eval/bench/make_freeze_dev.py --seed 2002 --out eval/data/fdev2 --prefix fdev2   # validation set
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=1001)
     ap.add_argument("--per-source", type=int, default=6)
     ap.add_argument("--out", type=Path, default=ROOT / "eval" / "data" / "fdev")
+    ap.add_argument("--prefix", default="fdev", help="video id prefix (use a different one per set)")
     args = ap.parse_args()
     segments = sorted(CACHE.glob("*.segment.mp4"))
     if not segments:
@@ -33,8 +35,8 @@ def main() -> int:
         name = seg.name.removesuffix(".segment.mp4")
         src = load_source(SourceSpec(name=name, path=seg))
         n = args.per_source
-        jobs = [T1Job(f"fdev_{name}_frozen_frame_{k}", si, DefectType.FROZEN_FRAME, k, (k + 0.5) / n) for k in range(n)]
-        jobs.append(T1Job(f"fdev_{name}_clean_0", si, None, 0, 0.0))
+        jobs = [T1Job(f"{args.prefix}_{name}_frozen_frame_{k}", si, DefectType.FROZEN_FRAME, k, (k + 0.5) / n) for k in range(n)]
+        jobs.append(T1Job(f"{args.prefix}_{name}_clean_0", si, None, 0, 0.0))
         for job in jobs:
             write_job(args.out, src, job, args.seed + si)
             print(job.video_id, flush=True)

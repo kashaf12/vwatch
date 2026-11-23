@@ -231,6 +231,35 @@ class TestCellHolds:
         diff, cells = self.head()
         assert detectors.detect_freezes(track(diff, cell_max=cells, rms_db=np.full(250, -90.0))) == []
 
+    def test_catch_up_seen_on_cells_after_fast_motion(self):
+        # animation: fast motion before (64 px diff ~4), calm after; the catch-up is clear only on cells
+        diff, cells = self.head(resume=5.6, around_diff=4.0, around_cell=20.0)
+        diff[91:110] = 0.15
+        cells[91:110] = 3.0
+        cells[90] = 43.0
+        out = detectors.detect_freezes(track(diff, cell_max=cells))
+        assert len(out) == 1 and out[0].score == 0.9
+
+    def test_one_frame_blip_does_not_split_a_hold(self):
+        diff, cells = self.head(b=83)  # 0.77 s hold ...
+        cells[71] = 0.8  # ... with one encoder-refresh frame in the middle: two halves under 0.4 s each
+        out = detectors.detect_freezes(track(diff, cell_max=cells))
+        assert len(out) == 1 and out[0].t0 == pytest.approx(2.0)
+
+    def test_large_blip_is_a_real_change(self):
+        diff, cells = self.head(b=83)
+        cells[71] = 5.0  # a caption or picture change, not encoder noise
+        assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
+
+    def test_constant_noise_on_a_repeated_frame_is_a_hold(self):
+        diff, cells = self.head(hold_cell=0.11)  # the same 0.11 every frame: static encoder noise
+        assert len(detectors.detect_freezes(track(diff, cell_max=cells))) == 1
+
+    def test_varying_small_motion_is_not_a_hold(self):
+        diff, cells = self.head()
+        cells[60:90] = np.tile([0.05, 0.17], 15)  # lips: small, but changing frame to frame
+        assert detectors.detect_freezes(track(diff, cell_max=cells)) == []
+
     def test_not_reported_twice(self):
         diff, cells = held()  # the classic case: both passes see it
         out = detectors.detect_freezes(track(diff, cell_max=cells))
