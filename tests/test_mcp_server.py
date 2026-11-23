@@ -646,3 +646,24 @@ class TestConcurrencyAndPrefetch:
         mt.video_info(str(tone_video))
         mt.wait_prefetch(timeout=10)
         assert fake_whisper == []
+
+
+class TestOtherAgentManifests:
+    """The Gemini CLI extension and the agents guide pin the same release as the package."""
+
+    def test_gemini_extension_matches_the_package(self):
+        version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+        ext = json.loads((ROOT / "gemini-extension.json").read_text())
+        args = ext["mcpServers"]["vwatch"]["args"]
+        assert ext["name"] == "vwatch" and ext["version"] == version
+        assert args[0] == "${extensionPath}${/}plugins${/}vwatch${/}bin${/}vwatch-mcp"
+        assert f"@v{version}" in args[args.index("--from") + 1]
+        assert (ROOT / ext["contextFileName"]).is_file()
+        assert (ROOT / "skills" / "watch-video" / "SKILL.md").is_file()  # the extension's skills dir
+
+    def test_agents_guide_pins_the_current_tag(self):
+        version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+        guide = (ROOT / "docs" / "agents.md").read_text()
+        tags = set(re.findall(r"vwatch@v(\d+\.\d+\.\d+)|vwatch/(v\d+\.\d+\.\d+)/", guide))
+        found = {a or b.lstrip("v") for a, b in tags}
+        assert found == {version}
