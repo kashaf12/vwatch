@@ -145,3 +145,33 @@ class TestWhisperLoader:
         monkeypatch.setenv("VWATCH_WHISPER_DEVICE", "mps")
         with pytest.raises(RuntimeError, match="could not load whisper: mps: no mps"):
             transcribe._whisper("small")
+
+
+class TestResegment:
+    """Batched decoding returns ~30 s segments; we rebuild sentence-sized ones from the word times."""
+
+    @staticmethod
+    def words(spec):
+        from vwatch.transcribe import Word
+        return tuple(Word(a, b, t) for a, b, t in spec)
+
+    def test_splits_at_sentence_end(self):
+        from vwatch.transcribe import resegment
+        segs = resegment(self.words([(0.0, 0.4, " Hello"), (0.4, 0.8, " there."), (0.9, 1.2, " Next"), (1.2, 1.5, " one.")]))
+        assert [(s.t0, s.t1, s.text) for s in segs] == [(0.0, 0.8, " Hello there."), (0.9, 1.5, " Next one.")]
+
+    def test_splits_at_long_pause(self):
+        from vwatch.transcribe import resegment
+        segs = resegment(self.words([(0.0, 0.5, " and"), (0.5, 1.0, " so"), (2.5, 3.0, " then")]))
+        assert [s.text for s in segs] == [" and so", " then"]
+
+    def test_caps_segment_length(self):
+        from vwatch.transcribe import resegment
+        ws = self.words([(k * 0.5, k * 0.5 + 0.4, " w") for k in range(60)])  # 30 s with no punctuation or pause
+        segs = resegment(ws)
+        assert len(segs) >= 3 and all(s.t1 - s.t0 <= 12.5 for s in segs)
+        assert sum(len(s.text.split()) for s in segs) == 60
+
+    def test_empty(self):
+        from vwatch.transcribe import resegment
+        assert resegment(()) == ()

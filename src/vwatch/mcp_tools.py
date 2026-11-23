@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 import threading
 from collections import OrderedDict
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import wait as _wait_futures
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -69,11 +71,26 @@ class _Entry:
 
 _lock = threading.Lock()
 _cache: OrderedDict[tuple[str, int, int], _Entry] = OrderedDict()
+_inflight: dict[tuple[tuple[str, int, int], str], Future] = {}
+
+# The MCP server turns this on: the first touch of a video starts its signal track, voice-activity check
+# and transcript in the background, so later calls find them ready. Plain function use stays synchronous.
+PREFETCH = False
+_pool: ThreadPoolExecutor | None = None
+_prefetched: list[Future] = []
+INFO_SPEECH_WAIT_S = 2.0  # with prefetch, video_info waits this long for the voice check, then moves on
 
 
 def clear_cache() -> None:
     with _lock:
         _cache.clear()
+
+
+def wait_prefetch(timeout: float | None = None) -> None:
+    """Block until background work started so far is done (tests, CLI)."""
+    with _lock:
+        pending = list(_prefetched)
+    _wait_futures(pending, timeout=timeout)
 
 
 def resolve_path(path: str) -> Path:
@@ -112,7 +129,10 @@ def _entry(path: str) -> _Entry:
         raise VideoToolError(f"not a readable video: {p} ({str(exc).strip()[-300:]})") from exc
     if info.duration <= 0 or info.width <= 0 or info.height <= 0:
         raise VideoToolError(f"video has no frames or zero duration: {p}")
-    return _store(key, _Entry(path=p, info=info))
+    entry = _store(key, _Entry(path=p, info=info))
+    if PREFETCH:
+        _start_prefetch(entry)
+    return entry
 
 
 def _store(key: tuple[str, int, int], entry: _Entry) -> _Entry:
@@ -124,28 +144,113 @@ def _store(key: tuple[str, int, int], entry: _Entry) -> _Entry:
     return entry
 
 
-def _update(entry: _Entry, compute: Callable[[_Entry], _Entry]) -> _Entry:
-    """Compute a lazily-filled field (outside the lock) and store the new entry."""
-    new = compute(entry)
-    return _store(_key(entry.path), new)
+def _latest(entry: _Entry) -> _Entry:
+    with _lock:
+        return _cache.get(_key(entry.path), entry)
+
+
+def _start(entry: _Entry, name: str, work: Callable[[], object]) -> Future:
+    """The future computing `name` for this video: an existing one, or a new one run in this thread's caller."""
+    key = (_key(entry.path), name)
+    with _lock:
+        fut = _inflight.get(key)
+        if fut is not None:
+            return fut
+        fut = Future()
+        _inflight[key] = fut
+    try:
+        fut.set_result(work())
+    except BaseException as exc:  # noqa: BLE001 - handed to every waiter
+        fut.set_exception(exc)
+    finally:
+        with _lock:
+            _inflight.pop(key, None)
+    return fut
+
+
+def _compute(entry: _Entry, name: str, work: Callable[[], object],
+             apply: Callable[[_Entry, object], _Entry]) -> tuple[_Entry, object]:
+    """Run `work` once per (video, name) even across parallel calls; merge into the LATEST cached entry.
+
+    Merging into the latest entry (not the one this call started from) keeps fields that other calls
+    filled meanwhile: a slow voice check finishing after the signal track must not drop the track.
+    """
+    key = (_key(entry.path), name)
+    with _lock:
+        fut = _inflight.get(key)
+    value = fut.result() if fut is not None else _start(entry, name, work).result()
+    with _lock:
+        k = _key(entry.path)
+        new = apply(_cache.get(k, entry), value)
+        _cache[k] = new
+        _cache.move_to_end(k)
+        while len(_cache) > CACHE_SIZE:
+            _cache.popitem(last=False)
+    return new, value
 
 
 def _with_track(entry: _Entry) -> _Entry:
+    entry = _latest(entry)
     if entry.track is not None:
         return entry
-    return _update(entry, lambda e: replace(e, track=signals.compute(e.path)))
+    new, _ = _compute(entry, "track", lambda: signals.compute(entry.path),
+                      lambda cur, v: cur if cur.track is not None else replace(cur, track=v))
+    return new
 
 
 def _with_transcript(entry: _Entry, language: str | None) -> tuple[_Entry, transcribe.Transcript]:
     lang = language or "auto"
+    entry = _latest(entry)
     for k, tr in entry.transcripts:
         if k == lang:
             return entry, tr
     if not entry.info.has_audio:
         return entry, transcribe.EMPTY
-    tr = transcribe.transcribe(entry.path, language=language)
-    entry = _update(entry, lambda e: replace(e, transcripts=e.transcripts + ((lang, tr),)))
-    return entry, tr
+
+    def apply(cur: _Entry, tr: object) -> _Entry:
+        if any(k == lang for k, _ in cur.transcripts):
+            return cur
+        return replace(cur, transcripts=cur.transcripts + ((lang, tr),))
+    new, tr = _compute(entry, f"transcript:{lang}", lambda: transcribe.transcribe(entry.path, language=language), apply)
+    return new, tr  # type: ignore[return-value]
+
+
+def _speech_work(entry: _Entry) -> Callable[[], float]:
+    def work() -> float:
+        if not entry.info.has_audio:
+            return 0.0
+        try:
+            return _speech_seconds(entry.path)
+        except Exception:  # noqa: BLE001 - the VAD is a nicety; never fail video_info over it
+            return -1.0
+    return work
+
+
+def _apply_speech(cur: _Entry, v: object) -> _Entry:
+    return cur if cur.speech_s is not None else replace(cur, speech_s=float(v))  # type: ignore[arg-type]
+
+
+def _start_prefetch(entry: _Entry) -> None:
+    global _pool
+    with _lock:
+        if _pool is None:
+            _pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="vwatch-prefetch")
+        pool = _pool
+    jobs: list[Callable[[], object]] = [lambda: _with_track(entry)]
+    if entry.info.has_audio:
+        jobs += [lambda: _compute(entry, "speech", _speech_work(entry), _apply_speech),
+                 lambda: _with_transcript(entry, None)]
+    futs = [pool.submit(_quiet, j) for j in jobs]
+    with _lock:
+        _prefetched[:] = [f for f in _prefetched if not f.done()] + futs
+
+
+def _quiet(job: Callable[[], object]) -> None:
+    """Background work: errors resurface when a tool asks for the same result in the foreground."""
+    try:
+        job()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _speech_seconds(path: Path) -> float:
@@ -227,16 +332,25 @@ def _with_summary(summary: str, ev: Evidence) -> list[Block]:
 
 
 def video_info(path: str) -> list[Block]:
-    e = _entry(path)
+    e = _latest(_entry(path))
     i = e.info
+    pending = False
     if e.speech_s is None:
-        try:
-            speech = _speech_seconds(e.path) if i.has_audio else 0.0
-        except Exception:  # noqa: BLE001 - the VAD is a nicety; never fail video_info over it
-            speech = -1.0
-        e = _update(e, lambda x: replace(x, speech_s=speech))
+        if PREFETCH:  # the voice check runs in the background; don't hold up planning for long
+            key = (_key(e.path), "speech")
+            with _lock:
+                fut = _inflight.get(key)
+            if fut is not None:
+                _wait_futures([fut], timeout=INFO_SPEECH_WAIT_S)
+            e = _latest(e)
+            pending = e.speech_s is None and fut is not None
+        if e.speech_s is None and not pending:
+            e, _ = _compute(e, "speech", _speech_work(e), _apply_speech)
     if not i.has_audio:
         speech_line = "audio: none"
+    elif pending:
+        speech_line = ("audio: yes; speech: still being checked in the background "
+                       "(the transcript is being prepared too; call video_transcript when you need it)")
     elif e.speech_s is not None and e.speech_s < 0:
         speech_line = "audio: yes; speech: unknown (voice-activity check failed; try video_transcript)"
     elif e.speech_s and e.speech_s >= 0.3:

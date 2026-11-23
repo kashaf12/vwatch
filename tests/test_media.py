@@ -106,6 +106,53 @@ class TestFramesByIndex:
         assert list(got) == [2] and _which(got[2]) == 2
 
 
+@pytest.fixture(scope="module")
+def long_marked(tmp_path_factory):
+    """300 frames at 30 fps with a keyframe every 48: frame k is a flat colour that identifies k."""
+    n = 300
+    frames = np.zeros((n, 48, 32, 3), dtype=np.uint8)
+    for k in range(n):
+        frames[k] = (k % 150 * 1.7, (k * 7) % 200 + 20, 60 + 120 * (k >= 150))
+    out = tmp_path_factory.mktemp("lm") / "long.mp4"
+    subprocess.run([media.ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "32x48", "-r", "30",
+                    "-i", "-", "-c:v", "libx264", "-crf", "4", "-g", "48", "-pix_fmt", "yuv444p", str(out)],
+                   input=frames.tobytes(), check=True)
+    return out, frames
+
+
+def _nearest(frame, frames):
+    m = frame.reshape(-1, 3).mean(axis=0)
+    return int(np.argmin(np.abs(frames.reshape(len(frames), -1, 3).mean(axis=1) - m).sum(axis=1)))
+
+
+class TestSeekedFrames:
+    """Frames near one spot come from a seek, not a decode from the start; they must be the same frames."""
+
+    def test_cluster_mid_file_is_exact(self, long_marked):
+        path, frames = long_marked
+        idx = list(range(150, 159)) + [161]
+        got = media.frames_by_index(path, idx, 32)
+        assert sorted(got) == idx and all(_nearest(f, frames) == i for i, f in got.items())
+
+    def test_two_clusters(self, long_marked):
+        path, frames = long_marked
+        got = media.frames_by_index(path, [100, 101, 250, 251], 32)
+        assert all(_nearest(f, frames) == i for i, f in got.items()) and sorted(got) == [100, 101, 250, 251]
+
+    def test_seek_matches_full_decode(self, long_marked):
+        path, _ = long_marked
+        idx = [97, 98, 99, 200]
+        a = media._seek_frames(path, idx, 32, 48, 30.0)
+        b = media._select_frames(path, idx, 32, 48)
+        assert sorted(a) == sorted(b) == idx
+        assert all(np.abs(a[i].astype(int) - b[i]).mean() < 1.0 for i in idx)
+
+    def test_last_frames(self, long_marked):
+        path, frames = long_marked
+        got = media.frames_by_index(path, [298, 299, 300], 32)
+        assert sorted(got) == [298, 299] and all(_nearest(f, frames) == i for i, f in got.items())
+
+
 class TestFramesAt:
     def test_dedup_and_sorted(self, marked_video):
         # 20 fps: 0.0 and 0.01 -> frame 0; 1.0 -> frame 20

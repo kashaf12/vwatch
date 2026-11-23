@@ -197,6 +197,8 @@ def decode_all(path: str | Path, width: int, *, gray: bool = False) -> tuple[np.
 
 
 SELECT_MAX_TERMS = 40  # ffmpeg's expression parser fails on very long select expressions
+SEEK_CLUSTER_GAP_S = 3.0  # wanted frames closer than this are decoded in one run after one seek
+SEEK_MAX_CLUSTERS = 6  # more clusters than this (an overview spread over the file): one pass from the start
 
 
 def frames_by_index(path: str | Path, indices: Iterable[int], width: int) -> dict[int, np.ndarray]:
@@ -209,15 +211,48 @@ def frames_by_index(path: str | Path, indices: Iterable[int], width: int) -> dic
         return {}
     info = probe(path)
     w, h = _scaled_size(info, width)
+    if len(_clusters(wanted, info.fps)) <= SEEK_MAX_CLUSTERS:
+        return _seek_frames(path, wanted, w, h, info.fps)
     if len(wanted) <= SELECT_MAX_TERMS:
         return _select_frames(path, wanted, w, h)
     return _stream_frames(path, wanted, w, h)
 
 
+def _clusters(wanted: list[int], fps: float) -> list[list[int]]:
+    gap = max(1, int(SEEK_CLUSTER_GAP_S * fps))
+    out: list[list[int]] = []
+    for i in wanted:
+        if out and i - out[-1][-1] <= gap:
+            out[-1].append(i)
+        else:
+            out.append([i])
+    return out
+
+
+def _seek_frames(path: str | Path, wanted: list[int], w: int, h: int, fps: float) -> dict[int, np.ndarray]:
+    """Frames near a few spots: seek to each spot, then decode only that stretch (cost independent of position).
+
+    Input seeking (-ss before -i) is frame-accurate when decoding: ffmpeg starts at the keyframe before
+    the target and discards frames up to it, so the first output frame is frame `first`.
+    """
+    size = w * h * 3
+    out: dict[int, np.ndarray] = {}
+    for group in _clusters(wanted, fps):
+        first, last = group[0], group[-1]
+        raw = _run([ffmpeg(), "-v", "error", "-ss", f"{first / fps:.6f}", "-i", str(path),
+                    "-vf", f"scale={w}:{h}:flags=area", "-frames:v", str(last - first + 1),
+                    "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+        keep = set(group)
+        for k in range(len(raw) // size):
+            if first + k in keep:
+                out[first + k] = np.frombuffer(raw[k * size:(k + 1) * size], dtype=np.uint8).reshape(h, w, 3)
+    return out
+
+
 def _select_frames(path: str | Path, wanted: list[int], w: int, h: int) -> dict[int, np.ndarray]:
     expr = "+".join(f"eq(n\\,{i})" for i in wanted)
     raw = _run([ffmpeg(), "-v", "error", "-i", str(path),
-                "-vf", f"select='{expr}',scale={w}:{h}:flags=area",
+                "-vf", f"select='{expr}',scale={w}:{h}:flags=area", "-frames:v", str(len(wanted)),
                 "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
     size = w * h * 3
     got = len(raw) // size
