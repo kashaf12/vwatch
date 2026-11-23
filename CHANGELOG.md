@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-23
+
+Long videos, and real footage instead of injected test sets.
+
+### Changed
+
+- **Seeks and crops no longer decode from the start of the file.** Frames near a few spots come from an input seek plus a short decode, pixel-identical to the full decode. On a 21-minute video that takes 0.1 s instead of 4.5–6.6 s per call. Frame sets spread over the whole file keep the one-pass decode, which now stops after its last wanted frame.
+- **The MCP server prefetches** a video's signal track, voice check and transcript in the background on first touch; `VWATCH_PREFETCH=0` turns it off. Parallel tool calls share one computation. `video_info` waits at most 2 s for the voice check.
+- **Batched whisper decoding:** 2.2× faster on Apple Silicon with the same words. Segments are rebuilt from word times, so transcript timestamps stay sentence-sized. `VWATCH_WHISPER_BATCH=0` restores one window at a time.
+
+### Fixed
+
+- A slow tool call could overwrite a newer cache entry and drop the signal track, so the next call recomputed it. Results now merge into the latest entry.
+- **No freeze alarms on still slides.** On a real lecture, a 38 s narrated slide between two talking-head shots was reported as a freeze with score 0.9. A hold that starts with a cut, or ends with a cut to a different-looking shot, is no longer a cell-level freeze. A hold with no motion before it and a jump after (a pause, then a pan) now scores 0.55 with a "check the frames" note.
+
 ## [0.2.3] - 2026-11-23
 
 ### Added
@@ -96,7 +111,8 @@ First public release.
 - **Pilot result** (`eval/results/pilot-2026-11-22.md`): verdict ITERATE.
 - `vw` CLI: `watch`, `signals`, `dataset build`, `eval run`, `eval report`.
 
-[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/kashaf12/vwatch/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/kashaf12/vwatch/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/kashaf12/vwatch/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/kashaf12/vwatch/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/kashaf12/vwatch/compare/v0.2.0...v0.2.1

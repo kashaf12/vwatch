@@ -58,7 +58,7 @@ Windows the plugin's server only starts if `sh` is on `PATH` (for example Git fo
 
 ```powershell
 winget install astral-sh.uv          # then open a new terminal
-claude mcp add vwatch -s user -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.3" vwatch-mcp
+claude mcp add vwatch -s user -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.4" vwatch-mcp
 ```
 
 ffmpeg is fetched automatically (static-ffmpeg has Windows x64 builds) unless `ffmpeg`/`ffprobe` are on
@@ -82,7 +82,7 @@ The plugin contains:
 ### Claude Code without the plugin
 
 ```bash
-claude mcp add vwatch -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.3" vwatch-mcp
+claude mcp add vwatch -- uvx --python 3.12 --from "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.4" vwatch-mcp
 ```
 
 (tools appear as `mcp__vwatch__video_info`, ...; add `-s user` to make it available in every project).
@@ -97,7 +97,7 @@ Add to the client's MCP config (`claude_desktop_config.json` for Claude Desktop,
   "mcpServers": {
     "vwatch": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.3", "vwatch-mcp"]
+      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.4", "vwatch-mcp"]
     }
   }
 }
@@ -108,7 +108,7 @@ GUI apps often start with a minimal `PATH`; if the client cannot find `uvx`, use
 ffmpeg add `"env": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"}` or
 `"env": {"VWATCH_FFMPEG": "/opt/homebrew/bin/ffmpeg", "VWATCH_FFPROBE": "/opt/homebrew/bin/ffprobe"}`.
 Or use the launcher from a clone: `"command": "sh", "args": ["/path/to/vwatch/plugins/vwatch/bin/vwatch-mcp",
-"--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.3", "vwatch-mcp"]`.
+"--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.4", "vwatch-mcp"]`.
 
 ### From a clone
 
