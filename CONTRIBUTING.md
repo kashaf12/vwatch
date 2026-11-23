@@ -10,7 +10,7 @@ You need Python 3.11+, [uv](https://docs.astral.sh/uv/) and `ffmpeg` on `PATH`.
 git clone https://github.com/kashaf12/vwatch.git
 cd vwatch
 uv sync --all-extras          # runtime deps, the Anthropic SDK extra and the dev group (pytest)
-uv run pytest -q              # ~550 tests, about 1-2 minutes, no network or model calls
+uv run pytest -q              # ~690 tests, about 1-2 minutes, no network or model calls
 uv run pytest --cov=vwatch    # with coverage
 ```
 

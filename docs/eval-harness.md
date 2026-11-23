@@ -146,7 +146,7 @@ Plugin launcher variables (`VWATCH_UV_INSTALL`, `VWATCH_SPEC`) are described in 
 | `docs/` | [Benchmark](benchmark.md), [eval protocol](eval-protocol.md), [dataset spec](dataset-spec.md), [data and licenses](DATA.md), [MCP reference](mcp.md), [CLI](cli.md), [roadmap](roadmap.md) |
 | `scripts/setup_external.sh` | Pinned install of the third-party tools for the external arms |
 | `scripts/smoke_mcp.py` | Fresh-install smoke test: starts the plugin's server and calls the tools over MCP |
-| `tests/` | ~620 tests; fakes only, no network or model calls |
+| `tests/` | ~690 tests; fakes only, no network or model calls |
 
 ## Citing
 
@@ -157,7 +157,7 @@ If you use vwatch or its eval harness, please cite it. GitHub's "Cite this repos
   author  = {kashaf12},
   title   = {vwatch: an agent toolkit that watches video like a person},
   year    = {2026},
-  version = {0.1.0},
+  version = {0.2.0},
   url     = {https://github.com/kashaf12/vwatch},
   license = {MIT}
 }

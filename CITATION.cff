@@ -4,8 +4,8 @@ title: "vwatch: an agent toolkit that watches video like a person"
 type: software
 authors:
   - alias: kashaf12
-version: 0.1.0
-date-released: 2026-11-22
+version: 0.2.0
+date-released: 2026-11-23
 license: MIT
 repository-code: "https://github.com/kashaf12/vwatch"
 url: "https://github.com/kashaf12/vwatch"
