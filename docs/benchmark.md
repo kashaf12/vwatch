@@ -2,13 +2,48 @@
 
 Everything vwatch has measured so far, newest first. How the runs are set up (arms, tasks, budgets, how to reproduce) is in [eval-harness.md](eval-harness.md); the full protocol and ship/kill thresholds are in [eval-protocol.md](eval-protocol.md).
 
-**Short version.** With three runs per tool, Claude Code with the vwatch plugin (v0.2.3) is statistically tied with plain Claude Code and claude-video-vision on finding video defects (F1 0.85 vs 0.83 and 0.86). It finds the most defects (recall 0.83) but has lower precision than claude-video-vision, at about half the cost and twice the speed. Its hint and skill wording was revised after reading its failures on the benchmark videos, so treat its numbers as optimistic until a fresh test set is run. It is not cheaper on 5–30 s clips. Every tool-using arm beats uniform frame sampling (0.37) by more than 40 pp.
+**Short version.** On a fresh, pre-registered set of 48 videos nobody had tuned on, Claude Code with the vwatch plugin is tied on accuracy with plain Claude Code and claude-video-vision (F1 0.62 vs 0.68 and 0.64; both differences within noise). It is significantly cheaper (36% and 44% less) and faster (29% less time and half the time). The older numbers below, where vwatch looked level or ahead, were measured on videos its hints had been tuned on.
 
+- [Fresh held-out benchmark (2026-11-24)](#fresh-held-out-benchmark-2026-11-24)
 - [Claude Code + vwatch plugin (2026-11-23)](#claude-code--vwatch-plugin-2026-11-23)
 - [Head-to-head with Claude Code video tools (2026-11-22)](#head-to-head-with-claude-code-video-tools)
 - [Pilot (2026-11-22)](#pilot-2026-11-22)
 - [Methodology in brief](#methodology-in-brief)
 - [Cost notes](#cost-notes)
+
+## Fresh held-out benchmark (2026-11-24)
+
+48 videos from Wikimedia Commons that no tool or vwatch decision had seen:
+- **Short set:** 40 clips of 50 s from 10 sources, with planted flash frames, freezes, jump cuts and audio dropouts (or nothing).
+- **Long set:** 8 whole videos of 12–29 min, each with one planted glitch (or none) and a 2 s on-screen code word.
+
+The rules were committed before any video was chosen ([protocol](fresh-bench-protocol.md), with its three logged deviations). Each tool ran once on `claude-opus-5-5`, scored exactly as labeled. Full report: [bench-fresh-2026-11-24.md](../eval/results/bench-fresh-2026-11-24.md).
+
+<p align="center"><img src="assets/bench-fresh-2026-11-24.png" width="100%" alt="Fresh benchmark: defect F1, cost and time per video for the three tools"></p>
+
+| Tool | F1 | Precision | Recall | Code word | Flash | Freeze | Jump cut | Dropout | $ / video | s / video |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Claude Code + vwatch plugin | 0.62 | 0.52 | 0.78 | 8/8 | 7/9 | 8/10 | **4/8** | 9/9 | **$0.20** | **58** |
+| Plain Claude Code | **0.68** | **0.59** | **0.81** | 8/8 | **9/9** | **9/10** | 2/8 | 9/9 | $0.31 | 81 |
+| claude-video-vision | 0.64 | 0.58 | 0.72 | 8/8 | 8/9 | 8/10 | 1/8 | 9/9 | $0.35 | 116 |
+
+Paired with a cluster bootstrap over sources:
+
+| vwatch minus… | F1 difference | Cost ratio | Time ratio |
+|---|---|---|---|
+| plain Claude Code | −6.0 pp [−18.5, +4.0]: tied | **0.64×** [0.58, 0.71] | **0.71×** [0.61, 0.82] |
+| claude-video-vision | −2.0 pp [−15.2, +8.2]: tied | **0.56×** [0.47, 0.66] | **0.50×** [0.39, 0.63] |
+
+**What this says.**
+- **Accuracy is a tie, and every tool scores far lower than on the old set.**
+  - Several sources are old archive films (1941, 1961) and news footage with real splices and damage. All three tools reported those as flash frames (14–16 wrong flash reports each), and they count as false alarms.
+  - On the old set, vwatch's hint wording had been revised after reading its failures there. Here it had not.
+- **vwatch finds the most jump cuts.** Plain Claude Code finds the most flashes and freezes.
+- **vwatch's weak spots here:**
+  - flash frames on bright slides: both long-lecture flashes were missed, because its free detector barely registers a white frame on a white slide;
+  - one freeze in a 1984 NASA film.
+  Neither is fixed against this set, because tuning on it would spoil it.
+- **Cheaper and faster is the claim that holds up:** about a third less cost and 30–50% less time than either tool, on short and long videos.
 
 ## Claude Code + vwatch plugin (2026-11-23)
 

@@ -98,33 +98,27 @@ Alarms are hints, not verdicts: a natural pause can look like a dropout. The [`w
 ## Results
 
 <!-- RESULTS:START -->
-<p align="center"><img src="docs/assets/bench-2026-11-23.png" width="100%" alt="Bar charts: defect F1, cost and wall time per video-minute, and TVBench accuracy for Claude Code with the vwatch plugin, plain Claude Code, claude-video-vision, popcorn, the vwatch loop and frames plus transcript"></p>
+<p align="center"><img src="docs/assets/bench-fresh-2026-11-24.png" width="100%" alt="Bar charts from the fresh benchmark: defect F1 0.62 for Claude Code with the vwatch plugin, 0.68 plain Claude Code, 0.64 claude-video-vision (differences within noise); cost per video $0.20, $0.31, $0.35; time per video 58 s, 81 s, 116 s"></p>
 
-Same model (`claude-opus-5-5`) and the same prompts for every arm, on 40 openly licensed speech videos (10 sources, 7 languages), each with one injected glitch or none, plus 36 TVBench questions:
+**Fresh, pre-registered benchmark (2026-11-24).** 48 videos none of the tools had seen: 40 short clips plus 8 long videos (12–29 min), from Wikimedia Commons, each with one planted glitch or none. The long videos also had a hidden on-screen code word. The [rules](docs/fresh-bench-protocol.md) were committed before any video was chosen. Each tool ran once on the same model, and everything is scored exactly as labeled.
 
-| | Defect F1 | Recall | $ / video-min | s / video-min | TVBench |
+| | Glitch score (F1) | Glitches found | Code word | Cost per video | Time per video |
 |---|---|---|---|---|---|
-| **Claude Code + vwatch plugin** | 0.85 | **0.83** | **$0.17** | **33** | 78% |
-| Plain Claude Code | 0.83 | 0.80 | $0.30 | 66 | 72% |
-| claude-video-vision | **0.86** | 0.76 | $0.39 | 61 | **81%** |
-| popcorn | 0.85 | 0.83* | $0.46 | 102 | 75% |
-| Frames + transcript | 0.37 | 0.23 | $0.28 | 8 | **81%** |
-
-<sub>Defect columns: 3 runs each for the plugin, Claude Code and claude-video-vision; *1 run for popcorn and frames.</sub>
+| **Claude Code + vwatch plugin** | 0.62 | 78% | 8/8 | **$0.20** | **58 s** |
+| Plain Claude Code | 0.68 | 81% | 8/8 | $0.31 | 81 s |
+| claude-video-vision | 0.64 | 72% | 8/8 | $0.35 | 116 s |
 
 **How to read this.**
-- **Recall:** of the real glitches in the videos, how many were found (0.83 = 83%).
-- **Defect F1:** one score from 0 to 1 that is high only when a tool finds most glitches *and* rarely reports a glitch that isn't there.
-- **$ / video-min and s / video-min:** the cost and the time to check one minute of video.
-- **TVBench:** accuracy on a public multiple-choice video quiz.
+- **Glitch score (F1):** one number from 0 to 1. It is high only when a tool finds most glitches *and* rarely reports a glitch that isn't there.
+- **Glitches found:** the share of planted glitches each tool caught.
 
-- **As accurate as the best tools, at half the cost and twice the speed.** The accuracy differences between the Claude Code tools are too small to tell apart on 40 videos: the plugin is 0.8 points below claude-video-vision, and the statistical uncertainty runs from −10 to +8. It finds the most glitches (83% vs 80% and 76%), but 13% of its reports are wrong, while claude-video-vision makes none. One caveat: the wording of the plugin's hints was revised after reading its mistakes on these same videos, so its numbers are somewhat optimistic until the fresh test set is in.
-- **Frames alone miss short glitches.** Uniform frames found 1 of 7 flash frames and 0 of 8 audio dropouts; the plugin found all of both in every run.
-- **Not cheaper on very short clips.** On TVBench's 5–30 s clips the skill's fixed setup dominates: $0.48 per video-minute against $0.21 for plain Claude Code.
-- **Long videos work.** On a 21-minute lecture with a 2 s on-screen code word and a 1 s freeze spliced in, the plugin found both in 138–159 s (plain Claude Code: 207 s). This is a single video, so treat it as a demonstration, not a ranking.
-- **A fresh, pre-registered benchmark is running:** 48 new videos, short and long, with every tool run once under rules [committed before any data was built](docs/fresh-bench-protocol.md). Its results will replace the caveat above.
+**What it says.**
+- **Accuracy is a tie.** The gaps between the three tools are too small to tell apart on 48 videos (vwatch minus plain Claude Code: −6 points, uncertainty −18.5 to +4). vwatch is not more accurate. It found the most jump cuts (4 of 8, against 2 and 1), but it missed two flash frames that landed on bright slides.
+- **It is cheaper and faster, and those gaps are real.** vwatch costs 36% less than plain Claude Code and 44% less than claude-video-vision. It takes 29% less time than plain Claude Code and half the time of claude-video-vision.
+- **Every tool raised false alarms on old archive film.** Footage from 1941 and 1961 has real splices and damage that look like glitches. All three tools reported some, and they count against all three.
+- **Frames alone miss short glitches.** On our earlier 40-video set, sampling one frame per second caught 1 of 7 flash frames and 0 of 8 audio dropouts.
 
-vwatch's own watcher loop (the standalone CLI below) scores 0.79 F1, up from 0.69 in v0.1. Full tables, charts and caveats: [docs/benchmark.md](docs/benchmark.md).
+Full tables, the uncertainty ranges and the limitations are in [the results](eval/results/bench-fresh-2026-11-24.md). Earlier results, including TVBench and a 21-minute long-video check, are in [docs/benchmark.md](docs/benchmark.md).
 <!-- RESULTS:END -->
 
 ## Standalone CLI
