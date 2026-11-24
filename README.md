@@ -15,6 +15,9 @@
 
 vwatch gives your agent eyes and ears for video files on your machine: timestamped frame grids, dense seeks, crops, a transcript, a loudness meter and model-free hints about where something looks wrong. A skill teaches it how to use them without burning tokens on frames where nothing happens.
 
+<p align="center"><img src="docs/assets/demo.gif" width="100%" alt="Terminal recording: Claude Code with the vwatch plugin checks a 42-second lecture clip with three planted glitches and reports the flash at 00:06.00, the audio dropout at 00:13.02 and the freeze at 00:32.97, and leaves out two natural pauses. The waiting is sped up 4x."></p>
+<p align="center"><sub>Three glitches planted in a 42 s lecture clip; the waiting is sped up 4×. Footage: William Fisher, CopyrightX Lecture 3.2, BerkmanCenter, <a href="https://commons.wikimedia.org/wiki/File:William_Fisher,_CopyrightX-_Lecture_3.2,_The_Subject_Matter_of_Copyright-_Drama_and_choreography.webm">CC BY 3.0</a>.</sub></p>
+
 **Tested on 48 videos no tool had seen before:** it finds glitches as well as plain Claude Code (a tie, not a win), at 36% lower cost and 29% less time. [Results](#results).
 
 ## Install in Claude Code
