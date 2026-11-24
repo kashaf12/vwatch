@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.kashaf12/vwatch",
+  "title": "vwatch",
+  "description": "Let agents watch local videos: frame grids, seeks, crops, transcript, loudness and glitch hints",
+  "repository": {
+    "url": "https://github.com/kashaf12/vwatch",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/kashaf12/vwatch",
+  "version": "0.2.6",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "vwatch",
+      "version": "0.2.6",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--python",
+          "value": ">=3.11,<3.13"
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

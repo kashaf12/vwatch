@@ -661,6 +661,20 @@ class TestOtherAgentManifests:
         assert (ROOT / ext["contextFileName"]).is_file()
         assert (ROOT / "skills" / "watch-video" / "SKILL.md").is_file()  # the extension's skills dir
 
+    def test_registry_server_json_matches_the_package(self):
+        """server.json (MCP Registry) names the PyPI release, and the README carries the ownership line."""
+        project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+        server = json.loads((ROOT / "server.json").read_text())
+        (pkg,) = server["packages"]
+        assert server["version"] == pkg["version"] == project["version"]
+        assert pkg["registryType"] == "pypi" and pkg["identifier"] == project["name"]
+        assert len(server["description"]) <= 100  # registry schema limit
+        assert f"<!-- mcp-name: {server['name']} -->" in (ROOT / "README.md").read_text()
+        # `uvx vwatch` must start the server without extras
+        assert project["scripts"]["vwatch"] == "vwatch.mcp_server:main"
+        base = " ".join(project["dependencies"])
+        assert "mcp>=" in base and "static-ffmpeg" in base
+
     def test_agents_guide_pins_the_current_tag(self):
         version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
         guide = (ROOT / "docs" / "agents.md").read_text()

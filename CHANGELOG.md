@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-24
+
 ### Added
+
+- **On PyPI and in the official MCP Registry** (`io.github.kashaf12/vwatch`). `uvx --python 3.12 vwatch` starts the MCP server: the server's dependencies (`mcp`, `static-ffmpeg`) are now part of the base install, and a new `vwatch` command runs the server. `vwatch[mcp]` still works. Releases are published from a tag by `.github/workflows/publish.yml` with PyPI trusted publishing and the registry's GitHub OIDC login, so no tokens are stored.
 
 - **Fresh held-out benchmark results** (`eval/results/bench-fresh-2026-11-24.md`, `eval/bench/score_fresh.py`): on 48 new videos, under rules committed before any video was chosen, the plugin is tied on accuracy with plain Claude Code and claude-video-vision, and significantly cheaper (0.64× and 0.56× the cost) and faster (0.71× and 0.50× the time).
 - **Setup for other agents** in `docs/agents.md`: Codex (checked end to end: it found the same glitches as Claude Code), Gemini CLI, Cursor, VS Code, opencode, Windsurf and Claude Desktop.

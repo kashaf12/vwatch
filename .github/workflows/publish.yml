@@ -1,0 +1,89 @@
+name: Publish
+
+# On a version tag (vX.Y.Z): build, publish to PyPI with trusted publishing, then publish server.json to the
+# official MCP Registry with its GitHub OIDC login. No tokens are stored in the repository.
+# One-time setup on PyPI: a trusted publisher for project "vwatch", owner kashaf12, repository vwatch,
+# workflow publish.yml, environment pypi.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    name: build and publish to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.11.26"
+
+      - name: Tag matches every version pin
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          py=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          server=$(jq -r .version server.json)
+          pkg=$(jq -r '.packages[0].version' server.json)
+          plugin=$(jq -r .version plugins/vwatch/.claude-plugin/plugin.json)
+          echo "tag=$tag pyproject=$py server.json=$server/$pkg plugin.json=$plugin"
+          test "$tag" = "$py" && test "$tag" = "$server" && test "$tag" = "$pkg" && test "$tag" = "$plugin"
+
+      - name: Build
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  registry:
+    name: publish to the MCP Registry
+    needs: pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # MCP Registry GitHub OIDC login
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.16
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+
+      - name: Log in to the MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish server.json
+        # The registry reads the README from PyPI to verify ownership; give a fresh upload time to appear.
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if ./mcp-publisher publish; then exit 0; fi
+            echo "attempt $attempt failed; retrying in 30 s"
+            sleep 30
+          done
+          exit 1
