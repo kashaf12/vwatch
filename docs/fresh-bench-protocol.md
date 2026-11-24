@@ -98,3 +98,11 @@ word?"
      once by the same rule and then frozen.
    - **Unchanged:** the queries, criteria, seeds, injection and scoring. No tool had been run on any fresh
      item, and the run-1 outputs were deleted.
+3. **2026-11-24, tool-call audit:**
+   - **What was flagged:** 8 claude-video-vision runs on long videos (5 defect, 3 code-word). Each one read a
+     file under `~/.claude/projects/<the run's own working-folder slug>/<session>/tool-results/`. Claude Code
+     saves a tool output there when it is too large to show inline and tells the agent to read it, so these
+     were auditor false positives, not escapes.
+   - **The fix:** the auditor now allows only that run's own project folder. Any other project folder,
+     including another run's, is still flagged (tested).
+   - **Re-runs:** those 8 runs were repeated for claude-video-vision only. No other arm had a flagged run.

@@ -458,3 +458,26 @@ class TestVwatchPluginArm:
         assert ex.builtin_tools(Arm.VWP) == "Bash,Read,Skill"
         assert ex.agent_prompt(Arm.VWP, "TASK").startswith("/vwatch:watch ./video.mp4 TASK")
         assert Arm.VWP in ex.EXTERNAL_ARMS
+
+
+class TestAuditOwnSessionDir:
+    """Claude Code saves an oversized tool output under ~/.claude/projects/<the run's own workdir slug>/ and
+    tells the agent to read it there. That folder belongs to the run; any other project folder does not."""
+
+    W = Path("/private/var/folders/gf/abc_def/T/vwatch-ext/383fed/work")
+
+    def _flags(self, command):
+        from vwatch.arms.external_audit import ToolCall, audit
+        return audit((ToolCall("i", "Bash", {"command": command}),), self.W)
+
+    def test_own_saved_tool_output_is_allowed(self):
+        own = Path.home() / ".claude/projects/-private-var-folders-gf-abc-def-T-vwatch-ext-383fed-work"
+        assert self._flags(f"head -c 3000 {own}/8a8d/tool-results/toolu_1.json") == ()
+
+    def test_another_project_folder_is_flagged(self):
+        other = Path.home() / ".claude/projects/-Users-someone-work-secret"
+        assert self._flags(f"cat {other}/notes.jsonl")
+
+    def test_another_run_folder_is_flagged(self):
+        other = Path.home() / ".claude/projects/-private-var-folders-gf-abc-def-T-vwatch-ext-999999-work"
+        assert self._flags(f"cat {other}/x/tool-results/y.json")
