@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{margin:0;box-sizing:border-box}
+body{width:1280px;height:640px;background:#0d1117;color:#e6edf3;font-family:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;padding:72px 80px;position:relative;overflow:hidden}
+.name{font:700 96px/1 "SF Mono",Menlo,monospace;letter-spacing:-2px}
+.name span{color:#f0b429}
+.tag{font-size:40px;line-height:1.25;margin-top:28px;color:#c9d1d9;max-width:1050px}
+.strip{position:absolute;left:80px;right:80px;bottom:150px;height:56px;display:flex;gap:6px}
+.f{flex:1;border-radius:4px;background:#21262d}
+.f.hit{background:#f0b429}
+.f.near{background:#3d444d}
+.ticks{position:absolute;left:80px;right:80px;bottom:120px;font:22px Menlo,monospace;color:#8b949e;display:flex;justify-content:space-between}
+.lab{position:absolute;bottom:120px;font:22px Menlo,monospace;color:#f0b429}
+.foot{position:absolute;left:80px;right:80px;bottom:52px;display:flex;justify-content:space-between;font-size:26px;color:#8b949e}
+.foot b{color:#e6edf3;font-weight:600}
+</style></head><body>
+<div class="name">v<span>watch</span></div>
+<div class="tag">Let AI agents watch local videos like a person: skim, notice what's off, look closer, cite the time.</div>
+<div class="strip" id="s"></div>
+<div class="ticks"><span>00:00</span><span>00:40</span></div><div class="lab" style="left:455px">▲ 00:13.43 flash</div><div class="lab" style="left:854px">▲ 00:27.10 freeze</div>
+<div class="foot"><span><b>Claude Code plugin</b> · MCP server · Codex · Gemini CLI</span><span>github.com/kashaf12/vwatch</span></div>
+<script>
+const s=document.getElementById('s');for(let i=0;i<48;i++){const d=document.createElement('div');d.className='f'+([16,33].includes(i)?' hit':[15,17,32,34].includes(i)?' near':'');s.appendChild(d)}
+</script></body></html>
