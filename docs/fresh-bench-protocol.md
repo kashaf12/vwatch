@@ -1,5 +1,7 @@
 # Fresh benchmark protocol (pre-registered)
 
+**Results:** [eval/results/bench-fresh-2026-11-24.md](../eval/results/bench-fresh-2026-11-24.md). Claim on the primary metric: **tied**. Cheaper and faster both meet the claim rule.
+
 This file is committed before any fresh-benchmark data is built or any tool is run on it. Everything it fixes
 (sources, tasks, scoring, the claims we may make) stays as written until the results are published. Any later
 deviation is listed under "Deviations" with the reason, next to the results.

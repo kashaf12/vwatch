@@ -6,8 +6,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- **Fresh held-out benchmark results** (`eval/results/bench-fresh-2026-11-24.md`, `eval/bench/score_fresh.py`): on 48 new videos, under rules committed before any video was chosen, the plugin is tied on accuracy with plain Claude Code and claude-video-vision, and significantly cheaper (0.64× and 0.56× the cost) and faster (0.71× and 0.50× the time).
 - **Setup for other agents** in `docs/agents.md`: Codex (checked end to end: it found the same glitches as Claude Code), Gemini CLI, Cursor, VS Code, opencode, Windsurf and Claude Desktop.
 - **The repository is also a Gemini CLI extension:** `gemini extensions install https://github.com/kashaf12/vwatch` gives you the server, the skill and a short context file. Tests keep its pinned version in step with the package.
+
+### Fixed
+
+- External-arm audit: a run reading its own Claude Code session folder (where oversized tool outputs are saved) is no longer flagged; other project folders still are.
 
 ### Changed
 
