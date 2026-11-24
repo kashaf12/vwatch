@@ -96,6 +96,10 @@ def _roots(workdir: Path) -> tuple[str, ...]:
             variants.add(p[len("/private"):])
         else:
             variants.add("/private" + p)
+    # Claude Code saves an oversized tool output under <config>/projects/<slug of the run's cwd>/ and tells the
+    # agent to read it there: that folder is the run's own; other project folders stay outside.
+    config = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".claude")
+    variants |= {os.path.join(config, "projects", re.sub(r"[^A-Za-z0-9]", "-", v)) for v in list(variants)}
     return tuple(sorted(variants))
 
 
