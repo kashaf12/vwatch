@@ -1,12 +1,12 @@
 {
   "name": "vwatch",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Let the agent watch local videos like a person: skim, notice what's off, look closer, cite the time.",
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "vwatch": {
       "command": "sh",
-      "args": ["${extensionPath}${/}plugins${/}vwatch${/}bin${/}vwatch-mcp", "--python", ">=3.11,<3.13", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"],
+      "args": ["${extensionPath}${/}plugins${/}vwatch${/}bin${/}vwatch-mcp", "--python", ">=3.11,<3.13", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.6", "vwatch-mcp"],
       "timeout": 600000
     }
   }

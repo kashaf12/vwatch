@@ -44,7 +44,7 @@ Add the server to `~/.codex/config.toml`, or to `.codex/config.toml` in a truste
 ```toml
 [mcp_servers.vwatch]
 command = "uvx"
-args = ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"]
+args = ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.6", "vwatch-mcp"]
 startup_timeout_sec = 180   # the first start downloads Python and vwatch
 tool_timeout_sec = 600      # transcribing a long video can take a few minutes
 ```
@@ -54,7 +54,7 @@ copy it there too if it doesn't show up:
 
 ```bash
 mkdir -p ~/.agents/skills/watch-video
-curl -fsSL https://raw.githubusercontent.com/kashaf12/vwatch/v0.2.5/plugins/vwatch/skills/watch-video/SKILL.md \
+curl -fsSL https://raw.githubusercontent.com/kashaf12/vwatch/v0.2.6/plugins/vwatch/skills/watch-video/SKILL.md \
   -o ~/.agents/skills/watch-video/SKILL.md
 ```
 
@@ -77,7 +77,7 @@ Update it later with `gemini extensions update vwatch`. If you would rather add 
   "mcpServers": {
     "vwatch": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"],
+      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.6", "vwatch-mcp"],
       "timeout": 600000
     }
   }
@@ -93,7 +93,7 @@ Add the server to `~/.cursor/mcp.json`, or to `.cursor/mcp.json` in a project:
   "mcpServers": {
     "vwatch": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"]
+      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.6", "vwatch-mcp"]
     }
   }
 }
@@ -112,7 +112,7 @@ Add the server to `.vscode/mcp.json`:
     "vwatch": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"]
+      "args": ["--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.6", "vwatch-mcp"]
     }
   }
 }
@@ -130,7 +130,7 @@ Add the server to `opencode.json` (project) or `~/.config/opencode/opencode.json
   "mcp": {
     "vwatch": {
       "type": "local",
-      "command": ["uvx", "--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.5", "vwatch-mcp"],
+      "command": ["uvx", "--python", "3.12", "--from", "vwatch[mcp] @ git+https://github.com/kashaf12/vwatch@v0.2.6", "vwatch-mcp"],
       "enabled": true,
       "timeout": 600000
     }

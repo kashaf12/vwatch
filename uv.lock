@@ -2717,15 +2717,17 @@ wheels = [
 
 [[package]]
 name = "vwatch"
-version = "0.2.5"
+version = "0.2.6"
 source = { editable = "." }
 dependencies = [
     { name = "faster-whisper" },
     { name = "matplotlib" },
+    { name = "mcp" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pillow" },
     { name = "pydantic" },
+    { name = "static-ffmpeg" },
 ]
 
 [package.optional-dependencies]
@@ -2749,10 +2751,12 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'api'", specifier = ">=0.70" },
     { name = "faster-whisper", specifier = ">=1.0" },
     { name = "matplotlib", specifier = ">=3.8" },
+    { name = "mcp", specifier = ">=2.3,<3" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3,<3" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "pydantic", specifier = ">=2.6" },
+    { name = "static-ffmpeg", specifier = ">=3.0,<4" },
     { name = "static-ffmpeg", marker = "extra == 'mcp'", specifier = ">=3.0,<4" },
 ]
 provides-extras = ["api", "mcp"]

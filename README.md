@@ -40,7 +40,9 @@ The tools are a standard MCP server, so any agent that supports MCP and image re
 | **Gemini CLI** | `gemini extensions install https://github.com/kashaf12/vwatch` |
 | **Cursor, VS Code, opencode, Windsurf, Claude Desktop** | one JSON block in the agent's MCP config |
 
-Copy-paste setups for each: [docs/agents.md](docs/agents.md).
+Copy-paste setups for each: [docs/agents.md](docs/agents.md). vwatch is also on [PyPI](https://pypi.org/project/vwatch/) and in the [official MCP Registry](https://registry.modelcontextprotocol.io/) as `io.github.kashaf12/vwatch`; `uvx --python 3.12 vwatch` starts the server.
+
+<!-- mcp-name: io.github.kashaf12/vwatch -->
 
 ## Usage
 
