@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/kashaf12/vwatch/discussions
+    about: Ask how to use vwatch, share results on your own videos, or float an idea before opening an issue.
+  - name: Security problem
+    url: https://github.com/kashaf12/vwatch/security/advisories/new
+    about: Report a vulnerability privately.

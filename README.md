@@ -15,6 +15,8 @@
 
 vwatch gives your agent eyes and ears for video files on your machine: timestamped frame grids, dense seeks, crops, a transcript, a loudness meter and model-free hints about where something looks wrong. A skill teaches it how to use them without burning tokens on frames where nothing happens.
 
+**Tested on 48 videos no tool had seen before:** it finds glitches as well as plain Claude Code (a tie, not a win), at 36% lower cost and 29% less time. [Results](#results).
+
 ## Install in Claude Code
 
 ```
