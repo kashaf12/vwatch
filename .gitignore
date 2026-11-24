@@ -35,6 +35,7 @@ eval/runs/
 eval/bench/*
 !eval/bench/*.txt
 !eval/bench/*.py
+!eval/bench/fresh_sources.json
 
 # Claude Code local state (agent worktrees, settings)
 .claude/

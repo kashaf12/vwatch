@@ -86,3 +86,15 @@ word?"
 1. **2026-11-24, data build:** the first build stopped on the first long video because the freeze injection
    used one ffmpeg stream twice without a `split` (an ffmpeg error, exit 234). Fixed by adding the split; source
    selection, injection parameters, seeds and scoring are unchanged. No tool had been run on any fresh item.
+2. **2026-11-24, source selection:**
+   - **The problem:** Commons search results vary between calls, so two build runs picked different short
+     sources: 20 distinct files over 2 runs instead of the same 10. The first long video (the JFK
+     inauguration speech) was also the third short source.
+   - **The fix:**
+     - the selection is now frozen in `eval/bench/fresh_sources.json` on first use and reused after;
+     - a frozen source that fails stops the build instead of being replaced;
+     - long-video selection skips any file already in the short set.
+   - **What was kept:** the short set is the most recent completed selection (run 2). The long set is selected
+     once by the same rule and then frozen.
+   - **Unchanged:** the queries, criteria, seeds, injection and scoring. No tool had been run on any fresh
+     item, and the run-1 outputs were deleted.

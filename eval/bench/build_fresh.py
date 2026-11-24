@@ -52,6 +52,30 @@ USED = {"File:President Donald J. Trump is Protecting American Steel (short).web
         "File:COMREL Cooking Demonstration (1015886).webm", "File:Freeride Skateboarding & Downhill Slides.webm",
         "File:Curry Chicken.webmhd.webm"}
 API = "https://commons.wikimedia.org/w/api.php"
+# Commons search results vary between calls, so the selection is frozen here on first use and reused after
+# (protocol deviation 2). A listed source that fails is an error, never silently replaced.
+SELECTION = Path(__file__).resolve().parent / "fresh_sources.json"
+
+
+def load_selection() -> dict[str, list[str]]:
+    return json.loads(SELECTION.read_text(encoding="utf-8")) if SELECTION.exists() else {}
+
+
+def save_selection(sel: dict[str, list[str]]) -> None:
+    SELECTION.write_text(json.dumps(sel, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def pages_for(client, titles: list[str]) -> list[dict]:
+    """imageinfo pages for these exact titles, in this order."""
+    out = []
+    for title in titles:
+        q = urllib.parse.urlencode({"action": "query", "format": "json", "titles": title, "prop": "imageinfo",
+                                    "iiprop": "url|size|mediatype|extmetadata"})
+        pages = list(json.loads(client._get(f"{API}?{q}")).get("query", {}).get("pages", {}).values())
+        if not pages or "imageinfo" not in pages[0]:
+            raise SystemExit(f"frozen source not found on Commons: {title}")
+        out.append(pages[0])
+    return out
 
 
 def search(client: _commons.CurlCommonsClient, query: str, limit: int = 50) -> list[dict]:
@@ -100,20 +124,25 @@ def short_name(title: str, k: int) -> str:
 # ------------------------------------------------------------------ short set
 
 
-def build_short(root: Path, client, log: list[str]) -> tuple[list[DatasetItem], list[str]]:
+def build_short(root: Path, client, log: list[str], frozen: list[str] | None) -> tuple[list[DatasetItem], list[str], list[str]]:
     cache = root / "_cache"
     items: list[DatasetItem] = []
     sources_md: list[str] = []
+    chosen: list[str] = []
     picked = 0
-    for page in candidates(client, SHORT_QUERIES, 60, 1800, 300_000_000, log):
+    pool = pages_for(client, frozen) if frozen else candidates(client, SHORT_QUERIES, 60, 1800, 300_000_000, log)
+    for page in pool:
         if picked == N_SHORT:
             break
         src = CommonsSource(short_name(page["title"], picked), page["title"], "auto")
         try:
             prep = _segment.prepare_source(client, src, cache, lambda p: transcribe.transcribe(p))
         except (SegmentError, _commons.CommonsError, media.MediaError, ValueError) as exc:
+            if frozen:
+                raise SystemExit(f"frozen short source failed: {page['title']}: {exc}") from exc
             log.append(f"| {page['title']} | short: {str(exc)[:160]} |")
             continue
+        chosen.append(page["title"])
         spec = SourceSpec(name=src.short, path=prep.segment_path)
         clip = load_source(spec)
         types = [GENERIC[(picked + k) % 4] for k in range(3)]
@@ -129,7 +158,7 @@ def build_short(root: Path, client, log: list[str]) -> tuple[list[DatasetItem], 
         del clip
     if picked < N_SHORT:
         raise SystemExit(f"only {picked} short sources qualified; widen the queries in the protocol first")
-    return items, sources_md
+    return items, sources_md, chosen
 
 
 # ------------------------------------------------------------------ long set
@@ -189,15 +218,21 @@ def render_long(raw: Path, out: Path, card: Path, t_card: float, kind: str, t_de
     return span
 
 
-def build_long(root: Path, client, log: list[str]) -> tuple[list[DatasetItem], list[str]]:
+def build_long(root: Path, client, log: list[str], frozen: list[str] | None,
+               exclude: set[str]) -> tuple[list[DatasetItem], list[str], list[str]]:
     cache = root / "_cache"
     cache.mkdir(parents=True, exist_ok=True)
     items: list[DatasetItem] = []
     sources_md: list[str] = []
+    chosen: list[str] = []
     picked = 0
-    for page in candidates(client, LONG_QUERIES, 600, 1800, 500_000_000, log):
+    pool = pages_for(client, frozen) if frozen else candidates(client, LONG_QUERIES, 600, 1800, 500_000_000, log)
+    for page in pool:
         if picked == N_LONG:
             break
+        if page["title"] in exclude:  # never the same file in both sets (protocol deviation 2)
+            log.append(f"| {page['title']} | long: already in the short set |")
+            continue
         info = _commons.parse_info(page)
         raw = cache / f"long{picked}{Path(info.url).suffix.lower()}"
         try:
@@ -210,9 +245,12 @@ def build_long(root: Path, client, log: list[str]) -> tuple[list[DatasetItem], l
             if speech < 0.5:
                 raise ValueError(f"sound on only {speech:.0%} of the file")
         except (ValueError, media.MediaError, _commons.CommonsError) as exc:
+            if frozen:
+                raise SystemExit(f"frozen long source failed: {page['title']}: {exc}") from exc
             log.append(f"| {page['title']} | long: {str(exc)[:160]} |")
             raw.unlink(missing_ok=True)
             continue
+        chosen.append(page["title"])
         rng = item_rng(SEED, 13, picked, 0)
         dur = probe.duration
         word = WORDS[int(rng.integers(0, len(WORDS)))]
@@ -248,7 +286,7 @@ def build_long(root: Path, client, log: list[str]) -> tuple[list[DatasetItem], l
         picked += 1
     if picked < N_LONG:
         raise SystemExit(f"only {picked} long sources qualified; widen the queries in the protocol first")
-    return items, sources_md
+    return items, sources_md, chosen
 
 
 def main() -> int:
@@ -262,14 +300,21 @@ def main() -> int:
     log: list[str] = []
     items: list[DatasetItem] = []
     rows: list[str] = []
+    sel = load_selection()
     if args.only in (None, "short"):
-        a, b = build_short(root, client, log)
+        a, b, chosen = build_short(root, client, log, sel.get("short"))
         items += a
         rows += b
+        if not sel.get("short"):
+            sel["short"] = chosen
+            save_selection(sel)
     if args.only in (None, "long"):
-        a, b = build_long(root, client, log)
+        a, b, chosen = build_long(root, client, log, sel.get("long"), set(sel.get("short") or []))
         items += a
         rows += b
+        if not sel.get("long"):
+            sel["long"] = chosen
+            save_selection(sel)
     (root / "manifest.jsonl").write_text("".join(i.model_dump_json() + "\n" for i in items), encoding="utf-8")
     (root / "SOURCES.md").write_text("| set | id | file | author | license | page | used | detail |\n"
                                      "|---|---|---|---|---|---|---|---|\n" + "\n".join(rows) + "\n", encoding="utf-8")
