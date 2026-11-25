@@ -62,6 +62,26 @@ Every interval lies entirely below 1, so "cheaper" and "faster" both meet the pr
   - **A freeze in a 1984 NASA film** that its detector did not flag.
 - **It costs about a third less and takes about 30–50% less time** than either other tool, on short and long videos alike.
 
+## Breakdown: false alarms and per-video comparison
+
+Added 2026-11-25 after a reader asked how the aggregate F1 splits by defect type and false alarms. The protocol did not pre-register this breakdown. It uses the same runs and scoring with no exclusions, describes the result above, and makes no new claim. `score_fresh.py` prints it after the main tables.
+
+| Tool | False alarms | Per video | Videos with a false alarm | By reported type |
+|---|---|---|---|---|
+| Claude Code + vwatch plugin | 26 | 0.54 | 20/48 | flash_frame 15, jump_cut 10, frozen_frame 1 |
+| Plain Claude Code | 20 | 0.42 | 11/48 | flash_frame 17, jump_cut 1, frozen_frame 1, audio_dropout 1 |
+| claude-video-vision | 19 | 0.40 | 11/48 | flash_frame 17, frozen_frame 1, audio_dropout 1 |
+
+Paired per video (vwatch plugin vs each tool):
+
+- vs plain Claude Code: found more on 3, fewer on 4, same on 41; false alarms fewer on 5, more on 11, same on 32.
+- vs claude-video-vision: found more on 3, fewer on 1, same on 44; false alarms fewer on 3, more on 10, same on 35.
+
+What it shows:
+- Flash-frame false alarms are about equal across the tools (15–17). Most come from the archive films with real splices.
+- **The gap is jump cuts.** vwatch finds the most real jump cuts (4 of 8), and it also reports 10 jump cuts that are not there, against 1 and 0. A reviewer pays for that in checking time, and the aggregate F1 does not show it.
+- Jump-cut hint precision is on the roadmap. Like the other fixes, it needs a new fresh set to be measured.
+
 ## Limitations
 
 - One run per tool, so differences of a few points are noise; the intervals above say how much.

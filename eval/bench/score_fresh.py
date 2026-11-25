@@ -5,18 +5,23 @@
 Primary metric: defect F1 over all 48 defect items (40 short + 8 long), scored as labeled, failed runs count.
 Paired differences: cluster bootstrap over sources (10,000 resamples, seed 0).
 Claim rule: "best" only if every paired 95% CI is above 0; "tied" if any includes 0; "behind" if one is below.
+
+Also prints a breakdown that the protocol did not pre-register (added 2026-11-25 after a reader asked for it):
+false alarms by reported type and per video, and a paired per-video comparison. Same runs, same scoring, no
+exclusions; it describes the result above and makes no new claim.
 """
 from __future__ import annotations
 
 import argparse
 import glob
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from vwatch.evaluation.cells import score_records
 from vwatch.evaluation.compare import compare
 from vwatch.evaluation.report import load_runs, load_truths
 from vwatch.evaluation.runs import dedupe_runs
+from vwatch.evaluation.scoring import _norm_type
 from vwatch.evaluation.stats import f1
 from vwatch.schemas import Task
 
@@ -26,6 +31,45 @@ NAMES = {"VWP": "Claude Code + vwatch plugin", "CC": "Plain Claude Code", "CVV":
 
 def arm_of(r) -> str:
     return r.run.arm.value if hasattr(r.run.arm, "value") else str(r.run.arm)
+
+
+def false_alarms_by_type(parsed: object, found_types: list[str]) -> Counter:
+    """Reported defects left unmatched, by type. Matching is same-type only, so per type:
+    unmatched = reported - matched, and matched = truth rows of that type that were found."""
+    reps = (parsed.get("defects") or []) if isinstance(parsed, dict) else []
+    reported = Counter(_norm_type(str(r.get("type", ""))) for r in reps if isinstance(r, dict))
+    found = Counter(found_types)
+    return Counter({t: n - found[t] for t, n in reported.items() if n > found[t]})
+
+
+def paired(a: dict[str, int], b: dict[str, int]) -> tuple[int, int, int]:
+    """Per-video comparison over the videos both have: (a higher, a lower, equal)."""
+    keys = a.keys() & b.keys()
+    return (sum(a[k] > b[k] for k in keys), sum(a[k] < b[k] for k in keys), sum(a[k] == b[k] for k in keys))
+
+
+def print_breakdown(by: dict) -> None:
+    print("\n## Breakdown (not pre-registered; describes the same runs)\n")
+    print("| Tool | False alarms | Per video | Videos with a false alarm | By reported type |\n|---|---|---|---|---|")
+    hits: dict[str, dict[str, int]] = {}
+    fps: dict[str, dict[str, int]] = {}
+    for arm in ARMS:
+        d = by[arm][Task.DEFECTS]
+        types: Counter = Counter()
+        for x in d:
+            types += false_alarms_by_type(x.run.parsed, [row.type for row in x.t1.rows if row.found])
+        hits[arm] = {x.run.video_id: x.t1.tp for x in d}
+        fps[arm] = {x.run.video_id: x.t1.fp for x in d}
+        total = sum(fps[arm].values())
+        with_fa = sum(1 for v in fps[arm].values() if v)
+        by_type = ", ".join(f"{t} {n}" for t, n in types.most_common())
+        print(f"| {NAMES[arm]} | {total} | {total / len(d):.2f} | {with_fa}/{len(d)} | {by_type} |")
+    print("\nPaired per video (vwatch plugin vs each tool):\n")
+    for b in ("CC", "CVV"):
+        more, fewer, same = paired(hits["VWP"], hits[b])
+        fmore, ffewer, fsame = paired(fps["VWP"], fps[b])
+        print(f"- vs {NAMES[b]}: found more on {more}, fewer on {fewer}, same on {same}; "
+              f"false alarms fewer on {ffewer}, more on {fmore}, same on {fsame}")
 
 
 def main() -> int:
@@ -90,6 +134,7 @@ def main() -> int:
     claim = ("BEST" if all(v == "ahead" for v in verdicts) else
              "BEHIND" if any(v == "behind" for v in verdicts) else "TIED")
     print(f"\nProtocol claim on the primary metric: **{claim}**")
+    print_breakdown(by)
     return 0
 
 
