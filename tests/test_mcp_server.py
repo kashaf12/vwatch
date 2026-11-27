@@ -356,8 +356,20 @@ class TestServer:
         assert sorted(t.name for t in tools) == sorted(TOOL_NAMES)
         by = {t.name: t for t in tools}
         assert by["video_crop"].input_schema["required"] == ["path", "t", "box"]
-        assert all(t.annotations.read_only_hint for t in tools)
         assert all(t.description for t in tools)
+
+    def test_every_tool_declares_annotations_and_title(self):
+        """Directories (OpenAI's, M8ven) check that tools state their behavior; every vwatch tool only reads."""
+        import anyio
+
+        from vwatch.mcp_server import build_server
+
+        for t in anyio.run(build_server().list_tools):
+            a = t.annotations
+            assert a is not None, t.name
+            assert (a.read_only_hint, a.destructive_hint, a.idempotent_hint, a.open_world_hint) == (
+                True, False, True, False), t.name
+            assert t.title, t.name
 
     def test_call_returns_image_content(self, tone_video):
         import anyio
