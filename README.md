@@ -10,6 +10,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![kashaf12/vwatch MCP server](https://glama.ai/mcp/servers/kashaf12/vwatch/badges/score.svg)](https://glama.ai/mcp/servers/kashaf12/vwatch)
 [![vwatch MCP on mcprush](https://mcprush.com/badge/vwatch-mcp/score.svg)](https://mcprush.com/kashaf12/vwatch-mcp)
+[![M8ven Trust](https://m8ven.ai/badge/mcp/kashaf12/vwatch?variant=verified)](https://m8ven.ai/mcp/kashaf12/vwatch)
 
 <img src="docs/assets/hero.svg" width="800" alt="Illustration: on a 40-second video with three short defects, 16 evenly spaced frames catch only the 0.8 s freeze; vwatch skims, flags three surprising moments, samples them densely and finds all three.">
 
