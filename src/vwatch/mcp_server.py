@@ -56,6 +56,18 @@ DESCRIPTIONS = {
 }
 
 
+# Human-readable names MCP clients show in place of the tool id.
+TITLES = {
+    "video_info": "Video info",
+    "video_transcript": "Speech transcript",
+    "video_signals": "Find suspect moments",
+    "video_overview": "Whole-video frame grid",
+    "video_seek": "Frames in a window",
+    "video_crop": "Zoom into a frame",
+    "video_listen": "Audio in a window",
+}
+
+
 def _to_content(blocks: list[dict]) -> list[Any]:
     from mcp_types import ImageContent, TextContent
 
@@ -95,11 +107,13 @@ def build_server():
 
     server = MCPServer(name="vwatch", version=__version__, instructions=INSTRUCTIONS,
                        website_url="https://github.com/kashaf12/vwatch")
+    # Every tool only reads the local video file. Results may be cached on disk and ffmpeg or the whisper model
+    # may be downloaded once, but no tool changes the user's files or reaches external systems on their behalf.
     ro = ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False, idempotent_hint=True)
 
     def tool(fn: Callable[..., Any]) -> Callable[..., Any]:
-        server.add_tool(fn, name=fn.__name__, description=DESCRIPTIONS[fn.__name__], annotations=ro,
-                        structured_output=False)
+        server.add_tool(fn, name=fn.__name__, title=TITLES[fn.__name__], description=DESCRIPTIONS[fn.__name__],
+                        annotations=ro, structured_output=False)
         return fn
 
     @tool
