@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
@@ -42,6 +43,36 @@ class FFmpegNotFoundError(FileNotFoundError):
 
 _ENV_VARS = {"ffmpeg": "VWATCH_FFMPEG", "ffprobe": "VWATCH_FFPROBE"}
 _fetch_lock = threading.Lock()
+# Seconds to wait before each retry of a static download that failed transiently (a 5xx or 429 from GitHub,
+# a dropped connection, a timeout). The build comes from one GitHub-hosted zip, so a short blip there would
+# otherwise fail a user's first run.
+_FETCH_RETRY_DELAYS: tuple[float, ...] = (3.0, 10.0)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """A download error worth retrying: a server-side HTTP error, rate limiting, a dropped connection or a timeout."""
+    try:
+        import requests
+    except ImportError:
+        return False
+    if isinstance(exc, requests.HTTPError):
+        status = exc.response.status_code if exc.response is not None else None
+        return status is not None and (status >= 500 or status == 429)
+    return isinstance(exc, (requests.ConnectionError, requests.Timeout))
+
+
+def _fetch_with_retries(run: Any, dest: Path) -> tuple[str, str]:
+    delays = list(_FETCH_RETRY_DELAYS)
+    while True:
+        try:
+            return run.get_or_fetch_platform_executables_else_raise(download_dir=str(dest))
+        except Exception as exc:
+            if not delays or not _is_transient(exc):
+                raise
+            delay = delays.pop(0)
+            print(f"vwatch: static ffmpeg download failed ({type(exc).__name__}: {exc}); retrying in {delay:g} s",
+                  file=sys.stderr, flush=True)
+            time.sleep(delay)
 
 
 def _cache_root() -> Path:
@@ -67,7 +98,7 @@ def _static_binaries() -> tuple[str, str]:
         try:
             # static-ffmpeg prints progress to stdout; an MCP stdio server must keep stdout for the protocol.
             with contextlib.redirect_stdout(sys.stderr):
-                ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise(download_dir=str(dest))
+                ffmpeg_exe, ffprobe_exe = _fetch_with_retries(run, dest)
         except Exception as exc:
             raise FFmpegNotFoundError(
                 f"ffmpeg/ffprobe not found on PATH and the static ffmpeg download into {dest} failed "
