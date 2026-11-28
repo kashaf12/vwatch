@@ -55,7 +55,8 @@ def wait_for_static_ffmpeg(timeout_s: float) -> None:
     deadline = time.monotonic() + timeout_s
     while not crumb.exists():
         if time.monotonic() > deadline:
-            raise TimeoutError(f"static ffmpeg not downloaded after {timeout_s:.0f} s ({crumb} missing)")
+            raise TimeoutError(f"static ffmpeg not downloaded after {timeout_s:.0f} s ({crumb} missing); "
+                               "see the server's 'ffmpeg not available yet' warning above for why")
         time.sleep(1)
 
 
@@ -95,7 +96,7 @@ async def smoke(args: argparse.Namespace) -> dict:
                 raise AssertionError(f"tool list mismatch: {sorted(names)}")
 
             t = time.monotonic()
-            await anyio.to_thread.run_sync(wait_for_static_ffmpeg, args.timeout)
+            await anyio.to_thread.run_sync(wait_for_static_ffmpeg, args.ffmpeg_wait)
             video = await anyio.to_thread.run_sync(make_video, args.workdir / "smoke.mp4")
             timings["ffmpeg_ready_and_video_s"] = round(time.monotonic() - t, 1)
             say(f"test video: {video} ({video.stat().st_size} bytes)")
@@ -128,12 +129,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--plugin-dir", type=Path, default=PLUGIN)
     ap.add_argument("--timeout", type=float, default=900, help="seconds for the whole run (first install is slow)")
+    ap.add_argument("--ffmpeg-wait", type=float, default=300,
+                    help="seconds to wait for the server's static ffmpeg download (normally ~25 s; if the server's "
+                         "download failed for good, the file never appears, so don't wait the whole run)")
     args = ap.parse_args()
     with tempfile.TemporaryDirectory(prefix="vwatch-smoke-") as tmp:
         args.workdir = Path(tmp)
         try:
             summary = anyio.run(smoke, args)
         except Exception as exc:  # noqa: BLE001 - report any failure as a failed smoke run
+            while isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
+                exc = exc.exceptions[0]  # anyio wraps the real error in a TaskGroup ExceptionGroup
             say(f"FAILED: {type(exc).__name__}: {exc}")
             return 1
     print(json.dumps(summary, indent=2))

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- **First run no longer fails on a brief GitHub hiccup.** The one-time static ffmpeg download is retried twice (after 3 s and 10 s) when GitHub answers 5xx or 429, or the connection drops or times out. The fresh-install smoke test now gives up on that download after 5 minutes, not 15, and prints the real error instead of `ExceptionGroup`.
+
 ## [0.2.6] - 2026-11-24
 
 ### Added

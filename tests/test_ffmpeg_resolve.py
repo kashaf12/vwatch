@@ -145,6 +145,56 @@ class TestStaticFallback:
             media.ffmpeg()
         assert len(attempts) == 2  # failures are not cached: a later call can succeed
 
+    def test_transient_download_errors_are_retried(self, no_system_ffmpeg, monkeypatch, capsys):
+        """A 504 from GitHub (seen on CI on 27 Nov 2026) is retried before the first run gives up."""
+        requests = pytest.importorskip("requests")
+        monkeypatch.setattr(media, "_FETCH_RETRY_DELAYS", (0.0, 0.0))
+        resp = requests.Response()
+        resp.status_code = 504
+        attempts = []
+
+        def fetch(download_dir):
+            attempts.append(download_dir)
+            if len(attempts) < 3:
+                raise requests.HTTPError("504 Server Error: Gateway Time-out", response=resp)
+            d = Path(download_dir)
+            return str(fake_exe(d / "ffmpeg")), str(fake_exe(d / "ffprobe"))
+
+        install_fake_static_ffmpeg(monkeypatch, fetch)
+        assert media.ffmpeg().endswith(os.path.join("testplat", "ffmpeg"))
+        assert len(attempts) == 3
+        assert "retrying" in capsys.readouterr().err
+
+    def test_transient_errors_give_up_after_the_retries(self, no_system_ffmpeg, monkeypatch):
+        requests = pytest.importorskip("requests")
+        monkeypatch.setattr(media, "_FETCH_RETRY_DELAYS", (0.0,))
+        attempts = []
+
+        def fetch(download_dir):
+            attempts.append(download_dir)
+            raise requests.ConnectionError("connection reset")
+
+        install_fake_static_ffmpeg(monkeypatch, fetch)
+        with pytest.raises(media.FFmpegNotFoundError, match="connection reset"):
+            media.ffmpeg()
+        assert len(attempts) == 2
+
+    def test_client_errors_are_not_retried(self, no_system_ffmpeg, monkeypatch):
+        requests = pytest.importorskip("requests")
+        monkeypatch.setattr(media, "_FETCH_RETRY_DELAYS", (0.0, 0.0))
+        resp = requests.Response()
+        resp.status_code = 404
+        attempts = []
+
+        def fetch(download_dir):
+            attempts.append(download_dir)
+            raise requests.HTTPError("404 Client Error", response=resp)
+
+        install_fake_static_ffmpeg(monkeypatch, fetch)
+        with pytest.raises(media.FFmpegNotFoundError, match="404"):
+            media.ffmpeg()
+        assert len(attempts) == 1
+
     def test_incomplete_download_is_reported(self, no_system_ffmpeg, monkeypatch):
         install_fake_static_ffmpeg(monkeypatch, lambda d: (str(Path(d) / "ffmpeg"), str(Path(d) / "ffprobe")))
         with pytest.raises(media.FFmpegNotFoundError, match="incomplete"):
